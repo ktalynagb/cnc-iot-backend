@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -34,7 +35,7 @@ class LecturaSalida(BaseModel):
     accel_z: float
     vibracion_total: float
     alerta: bool
-    motivo_alerta: str | None
+    motivo_alerta: Optional[str]
 
     model_config = {"from_attributes": True}
 

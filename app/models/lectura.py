@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 from sqlalchemy import Float, DateTime, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column
@@ -24,4 +25,4 @@ class Lectura(Base):
 
     # Alertas
     alerta: Mapped[bool] = mapped_column(Boolean, default=False)
-    motivo_alerta: Mapped[str | None] = mapped_column(nullable=True)
+    motivo_alerta: Mapped[Optional[str]] = mapped_column(nullable=True)
