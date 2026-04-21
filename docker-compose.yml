@@ -17,6 +17,7 @@ services:
       retries: 5
 
   backend:
+    image: davids117/cnc-iot-backend-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -36,6 +37,7 @@ services:
         condition: service_healthy
 
   frontend:
+    image: davids117/cnc-iot-backend-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
