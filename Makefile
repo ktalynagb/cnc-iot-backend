@@ -9,7 +9,12 @@ UVICORN    := uvicorn
 APP        := app.main:app
 ENV_FILE   := .env
 VENV       := .venv
-VENV_BIN   := $(VENV)/bin
+
+ifeq ($(OS),Windows_NT)
+	VENV_BIN := $(VENV)/Scripts
+else
+	VENV_BIN := $(VENV)/bin
+endif
 
 DB_NAME    := cnc_iot
 DB_USER    := cnc_user
