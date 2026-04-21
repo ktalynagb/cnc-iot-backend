@@ -12,6 +12,15 @@ export function CameraStream() {
   const [hasError, setHasError] = useState(false);
 
   const handleSave = () => {
+    // Only allow http/https URLs to prevent javascript: URI injection
+    try {
+      const parsed = new URL(draft);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return;
+      }
+    } catch {
+      return;
+    }
     setUrl(draft);
     setHasError(false);
     setEditing(false);

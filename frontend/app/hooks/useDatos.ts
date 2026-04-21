@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { LecturaSalida } from "../types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const HISTORY_SIZE = 60; // keep the last 60 readings for the chart
+const MAX_CHART_READINGS = 60; // keep the last 60 readings for the chart
 
 export function useDatos() {
   const [data, setData] = useState<LecturaSalida[]>([]);
@@ -16,7 +16,7 @@ export function useDatos() {
 
     const fetchData = async () => {
       try {
-        const res = await fetch(`${API_BASE}/datos?limit=${HISTORY_SIZE}`);
+        const res = await fetch(`${API_BASE}/datos?limit=${MAX_CHART_READINGS}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: LecturaSalida[] = await res.json();
         if (cancelled) return;
