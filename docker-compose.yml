@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
@@ -45,7 +43,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:8000
+      # NEXT_PUBLIC_* vars are embedded at build time (client-side).
+      # For local development the browser reaches the backend via the host.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
     depends_on:
       - backend
 

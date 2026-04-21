@@ -56,7 +56,7 @@ install:
 env:
 	@if (-Not (Test-Path "$(BACKEND_DIR)\.env")) { \
 		Copy-Item "$(BACKEND_DIR)\.env.example" "$(BACKEND_DIR)\.env"; \
-		Write-Host "$(BACKEND_DIR)\.env creado — editalo con tus valores."; \
+		Write-Host "$(BACKEND_DIR)\.env creado — edítalo con tus valores."; \
 	} else { \
 		Write-Host "$(BACKEND_DIR)\.env ya existe, no se sobreescribe."; \
 	}
