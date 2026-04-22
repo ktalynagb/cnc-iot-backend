@@ -16,6 +16,7 @@ dependencies = [
     "pytest-asyncio",
     "ruff",
     "requests>=2.33.1",
+    "customtkinter>=5.2.2",
 ]
 
 [project.optional-dependencies]

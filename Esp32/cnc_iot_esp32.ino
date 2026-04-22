@@ -2,7 +2,7 @@
 //  CNC IoT - ESP32
 //  Sensores : DHT11 (temperatura y humedad)
 //             MPU-6050 (aceleración X/Y/Z por I2C)
-//  Destino  : POST http://192.168.56.10:8000/datos
+//  Destino  : POST http://20.29.102.93/datos/
 // =============================================================
 
 // Librerías 
