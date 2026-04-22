@@ -1,10 +1,10 @@
 <#
-Deploy script maestro para Azure (Versión Final - Estable):
+Deploy script maestro para Azure (Versión Final - A Prueba de Fallos):
 - Crea RG, VNet (public + private).
 - Despliega AppGW vía CLI en puerto dummy (8080) temporalmente.
-- Despliega ACI con CPU/Memoria explícitos y Autenticación de Docker Hub (evita Rate Limits).
-- Corrige el ruteo interno: Frontend usa el puerto 3000 (Next.js), Backend usa el puerto 8000.
-- Configura proxy inverso: Tráfico raíz (puerto 80) -> Frontend(3000) | Tráfico /datos/* -> Backend(8000).
+- Despliega ACI superando Rate Limits con Autenticación explícita de Docker Hub.
+- Frontend usa el puerto 3000 (Next.js nativo), Backend usa el puerto 8000.
+- Configura proxy inverso con rutas tolerantes: "/datos" y "/datos/*" -> Backend.
 #>
 
 param(
@@ -127,7 +127,8 @@ az network application-gateway http-settings create --gateway-name $appgw --reso
 
 az network application-gateway http-listener create --gateway-name $appgw --resource-group $rg --name AppGwFrontListener --frontend-port PortPublico --frontend-ip appGatewayFrontendIP | Out-Null
 
-az network application-gateway url-path-map create --gateway-name $appgw --resource-group $rg --name UrlPathMap --rule-name DatosRule --paths "/datos/*" --address-pool BackendPool --http-settings BackendHttpSettings --default-address-pool FrontendPoolExplicit --default-http-settings FrontendHttpSettings | Out-Null
+# AQUÍ ESTÁ LA MAGIA: Incluimos ambas rutas separadas por espacio
+az network application-gateway url-path-map create --gateway-name $appgw --resource-group $rg --name UrlPathMap --rule-name DatosRule --paths "/datos" "/datos/*" --address-pool BackendPool --http-settings BackendHttpSettings --default-address-pool FrontendPoolExplicit --default-http-settings FrontendHttpSettings | Out-Null
 
 az network application-gateway rule create --gateway-name $appgw --resource-group $rg --name RequestRule-PathBased --rule-type PathBasedRouting --http-listener AppGwFrontListener --url-path-map UrlPathMap --priority 100 | Out-Null
 
