@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models.lectura import Lectura
 from app.schemas.lectura import AlertaSalida
 
-router = APIRouter(prefix="/alertas", tags=["Alertas"])
+router = APIRouter(prefix="/datos/alertas", tags=["Alertas"])
 
 
 @router.get("/", response_model=List[AlertaSalida])
