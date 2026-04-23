@@ -36,6 +36,7 @@ client = TestClient(app)
 
 PAYLOAD_NORMAL = {
     "temperatura": 28.5,
+    "humedad": 55.0,
     "accel_x": 0.12,
     "accel_y": -0.03,
     "accel_z": 0.05,   # vibración baja — dentro del umbral de 2.0 m/s²
@@ -43,6 +44,7 @@ PAYLOAD_NORMAL = {
 
 PAYLOAD_ALERTA = {
     "temperatura": 60.0,   # fuera de rango
+    "humedad": 90.0,        # fuera de rango (> HUM_MAX 80)
     "accel_x": 5.0,
     "accel_y": 5.0,
     "accel_z": 5.0,         # vibración alta
@@ -60,6 +62,7 @@ def test_post_datos_normal():
     assert r.status_code == 201
     data = r.json()
     assert data["temperatura"] == 28.5
+    assert data["humedad"] == 55.0
     assert data["alerta"] is False
     assert data["motivo_alerta"] is None
     assert "vibracion_total" in data

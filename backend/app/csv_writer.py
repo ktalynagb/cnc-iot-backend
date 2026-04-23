@@ -8,7 +8,7 @@ from app.config import settings
 
 _lock = threading.Lock()
 _CSV_HEADERS = [
-    "id", "timestamp", "temperatura",
+    "id", "timestamp", "temperatura", "humedad",
     "accel_x", "accel_y", "accel_z", "vibracion_total",
     "alerta", "motivo_alerta",
 ]
@@ -33,6 +33,7 @@ def guardar_lectura_csv(lectura) -> None:
         "id": lectura.id,
         "timestamp": lectura.timestamp.isoformat(),
         "temperatura": lectura.temperatura,
+        "humedad": lectura.humedad,
         "accel_x": lectura.accel_x,
         "accel_y": lectura.accel_y,
         "accel_z": lectura.accel_z,

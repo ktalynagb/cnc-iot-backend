@@ -6,13 +6,13 @@ Universidad Autónoma de Occidente · Práctica 1
 ## Integrantes
 | Rol | Persona | Responsabilidad |
 |-----|---------|-----------------|
-| Hardware & Firmware | Valentina | ESP32-CAM + MPU-6050 + DHT22 |
+| Hardware & Firmware | Valentina | ESP32-CAM + MPU-6050 + DHT11 |
 | Backend & BD | Katalyna | FastAPI + PostgreSQL + CSV |
 | Dashboard + Azure | David | Frontend + despliegue en nube |
 
 ## Caso de uso
 Monitoreo en tiempo real de una **máquina CNC** para detectar:
-- 🌡️ Temperatura del entorno (DHT22)
+- 🌡️ Temperatura del entorno (DHT11)
 - 📳 Vibración en ejes X, Y, Z (MPU-6050)
 - 🚨 Alertas cuando los valores salen de rangos normales
 
@@ -56,6 +56,7 @@ cnc-iot-backend/
 ```json
 {
   "temperatura": 28.5,
+  "humedad": 65.2,
   "accel_x": 0.12,
   "accel_y": -0.03,
   "accel_z": 9.81
@@ -67,6 +68,7 @@ cnc-iot-backend/
 | Variable | Mínimo | Máximo |
 |----------|--------|--------|
 | Temperatura (°C) | 15 | 45 |
+| Humedad (%) | 20 | 80 |
 | Vibración \|accel\| (m/s²) | — | 2.0 |
 
 ## Inicio rápido (desarrollo local)

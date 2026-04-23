@@ -1,0 +1,117 @@
+From 0e1994ff147b9838436e2cd386d0bda87009bb02 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Thu, 23 Apr 2026 00:36:35 +0000
+Subject: [PATCH] fix: agregar humedad en CSV, tests, README y log del sender
+
+- csv_writer.py: agregar 'humedad' en _CSV_HEADERS y en el dict row
+- test_datos.py: incluir humedad en PAYLOAD_NORMAL y PAYLOAD_ALERTA, agregar assertion data['humedad']
+- README.md: JSON de ejemplo con humedad, tabla de umbrales con HUM_MIN/MAX, corregir DHT22 -> DHT11
+- sender.py: mostrar humedad en log de envio exitoso
+---
+ README.md                   | 6 ++++--
+ backend/app/csv_writer.py   | 3 ++-
+ backend/tests/test_datos.py | 3 +++
+ backend/tools/sender.py     | 2 +-
+ 4 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/README.md b/README.md
+index 7f5828b..14778a6 100644
+--- a/README.md
++++ b/README.md
+@@ -6,13 +6,13 @@ Universidad Autónoma de Occidente · Práctica 1
+ ## Integrantes
+ | Rol | Persona | Responsabilidad |
+ |-----|---------|-----------------|
+-| Hardware & Firmware | Valentina | ESP32-CAM + MPU-6050 + DHT22 |
++| Hardware & Firmware | Valentina | ESP32-CAM + MPU-6050 + DHT11 |
+ | Backend & BD | Katalyna | FastAPI + PostgreSQL + CSV |
+ | Dashboard + Azure | David | Frontend + despliegue en nube |
+ 
+ ## Caso de uso
+ Monitoreo en tiempo real de una **máquina CNC** para detectar:
+-- 🌡️ Temperatura del entorno (DHT22)
++- 🌡️ Temperatura del entorno (DHT11)
+ - 📳 Vibración en ejes X, Y, Z (MPU-6050)
+ - 🚨 Alertas cuando los valores salen de rangos normales
+ 
+@@ -56,6 +56,7 @@ cnc-iot-backend/
+ ```json
+ {
+   "temperatura": 28.5,
++  "humedad": 65.2,
+   "accel_x": 0.12,
+   "accel_y": -0.03,
+   "accel_z": 9.81
+@@ -67,6 +68,7 @@ cnc-iot-backend/
+ | Variable | Mínimo | Máximo |
+ |----------|--------|--------|
+ | Temperatura (°C) | 15 | 45 |
++| Humedad (%) | 20 | 80 |
+ | Vibración \|accel\| (m/s²) | — | 2.0 |
+ 
+ ## Inicio rápido (desarrollo local)
+diff --git a/backend/app/csv_writer.py b/backend/app/csv_writer.py
+index d1485ee..e07b951 100644
+--- a/backend/app/csv_writer.py
++++ b/backend/app/csv_writer.py
+@@ -8,7 +8,7 @@ from app.config import settings
+ 
+ _lock = threading.Lock()
+ _CSV_HEADERS = [
+-    "id", "timestamp", "temperatura",
++    "id", "timestamp", "temperatura", "humedad",
+     "accel_x", "accel_y", "accel_z", "vibracion_total",
+     "alerta", "motivo_alerta",
+ ]
+@@ -33,6 +33,7 @@ def guardar_lectura_csv(lectura) -> None:
+         "id": lectura.id,
+         "timestamp": lectura.timestamp.isoformat(),
+         "temperatura": lectura.temperatura,
++        "humedad": lectura.humedad,
+         "accel_x": lectura.accel_x,
+         "accel_y": lectura.accel_y,
+         "accel_z": lectura.accel_z,
+diff --git a/backend/tests/test_datos.py b/backend/tests/test_datos.py
+index 66d19c4..93c2cc8 100644
+--- a/backend/tests/test_datos.py
++++ b/backend/tests/test_datos.py
+@@ -36,6 +36,7 @@ client = TestClient(app)
+ 
+ PAYLOAD_NORMAL = {
+     "temperatura": 28.5,
++    "humedad": 55.0,
+     "accel_x": 0.12,
+     "accel_y": -0.03,
+     "accel_z": 0.05,   # vibración baja — dentro del umbral de 2.0 m/s²
+@@ -43,6 +44,7 @@ PAYLOAD_NORMAL = {
+ 
+ PAYLOAD_ALERTA = {
+     "temperatura": 60.0,   # fuera de rango
++    "humedad": 90.0,        # fuera de rango (> HUM_MAX 80)
+     "accel_x": 5.0,
+     "accel_y": 5.0,
+     "accel_z": 5.0,         # vibración alta
+@@ -60,6 +62,7 @@ def test_post_datos_normal():
+     assert r.status_code == 201
+     data = r.json()
+     assert data["temperatura"] == 28.5
++    assert data["humedad"] == 55.0
+     assert data["alerta"] is False
+     assert data["motivo_alerta"] is None
+     assert "vibracion_total" in data
+diff --git a/backend/tools/sender.py b/backend/tools/sender.py
+index e7d6652..36422b3 100644
+--- a/backend/tools/sender.py
++++ b/backend/tools/sender.py
+@@ -113,7 +113,7 @@ class CNCSimulator(ctk.CTk):
+         try:
+             res = requests.post(url, json=payload, timeout=3)
+             if res.status_code in (200, 201):
+-                self.log(f"✅ Enviado: T:{payload['temperatura']} | Ax:{payload['accel_x']}")
++                self.log(f"✅ Enviado: T:{payload['temperatura']} | Hum:{payload['humedad']} | Ax:{payload['accel_x']}")
+             else:
+                 self.log(f"❌ Error HTTP {res.status_code}: {res.text}")
+         except Exception as e:
+-- 
+2.43.0
+

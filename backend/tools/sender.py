@@ -113,7 +113,7 @@ class CNCSimulator(ctk.CTk):
         try:
             res = requests.post(url, json=payload, timeout=3)
             if res.status_code in (200, 201):
-                self.log(f"✅ Enviado: T:{payload['temperatura']} | Ax:{payload['accel_x']}")
+                self.log(f"✅ Enviado: T:{payload['temperatura']} | Hum:{payload['humedad']} | Ax:{payload['accel_x']}")
             else:
                 self.log(f"❌ Error HTTP {res.status_code}: {res.text}")
         except Exception as e:
