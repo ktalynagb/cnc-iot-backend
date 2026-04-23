@@ -1,5 +1,4 @@
 from typing import Optional, Tuple
-from typing import Optional
 import math
 from app.config import settings
 

@@ -47,21 +47,21 @@ export default function Dashboard() {
             value={latest ? latest.temperatura.toFixed(1) : "—"}
             unit="°C"
             Icon={Thermometer}
-            alert={!!latest?.alerta}
+            alert={!!latest?.motivo_alerta?.includes("Temperatura")}
           />
           <KpiCard
             label="Humedad"
             value={latest ? latest.humedad.toFixed(0) : "—"}
             unit="%"
             Icon={Droplets}
-            alert={!!latest?.alerta}
+            alert={!!latest?.motivo_alerta?.includes("Humedad")}
           />
           <KpiCard
             label="Vibración"
             value={latest ? latest.vibracion_total.toFixed(3) : "—"}
             unit="m/s²"
             Icon={Activity}
-            alert={!!latest?.alerta}
+            alert={!!latest?.motivo_alerta?.includes("Vibración")}
           />
         </section>
 
