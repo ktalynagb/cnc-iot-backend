@@ -140,18 +140,12 @@ build-deploy:
 
 push-frontend:
 	@Write-Host "Publicando imagen del frontend en Docker Hub..."
-	@$$env = Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { $$k, $$v = $$_ -split '=', 2; [System.Environment]::SetEnvironmentVariable($$k.Trim(), $$v.Trim()) }; \
-	$$pass = [System.Environment]::GetEnvironmentVariable("DOCKER_PASSWORD"); \
-	$$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; \
-	docker push $(FRONTEND_IMAGE)
+	@$$pass = (Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { ($$_ -split '=', 2)[1].Trim() }); $$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; docker push $(FRONTEND_IMAGE)
 	@Write-Host "Frontend publicado."
 
 push-backend:
 	@Write-Host "Publicando imagen del backend en Docker Hub..."
-	@$$env = Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { $$k, $$v = $$_ -split '=', 2; [System.Environment]::SetEnvironmentVariable($$k.Trim(), $$v.Trim()) }; \
-	$$pass = [System.Environment]::GetEnvironmentVariable("DOCKER_PASSWORD"); \
-	$$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; \
-	docker push $(BACKEND_IMAGE)
+	@$$pass = (Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { ($$_ -split '=', 2)[1].Trim() }); $$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; docker push $(BACKEND_IMAGE)
 	@Write-Host "Backend publicado."
 
 release: push-frontend push-backend
