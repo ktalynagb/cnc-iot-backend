@@ -32,7 +32,7 @@ class CNCSimulator(ctk.CTk):
         
         ctk.CTkLabel(self.frame_url, text="Backend URL:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=(10,0))
         self.entry_url = ctk.CTkEntry(self.frame_url)
-        self.entry_url.insert(0, "http://20.12.182.114/datos/")
+        self.entry_url.insert(0, "http://20.12.234.41/datos/")
         self.entry_url.pack(padx=10, pady=10, fill="x")
 
         # --- Sección de Modo ---
