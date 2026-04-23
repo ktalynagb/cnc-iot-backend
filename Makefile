@@ -10,12 +10,22 @@ BACKEND_DIR  := backend
 FRONTEND_DIR := frontend
 NPM          := npm
 
+# Docker — Lee credenciales e imágenes desde Deploy\.env
+# Ejemplo en Deploy\.env:
+#   DOCKER_USERNAME=ktalynagb
+#   FRONTEND_IMAGE=ktalynagb/frontend:latest
+#   BACKEND_IMAGE=ktalynagb/backend:latest
+DEPLOY_ENV   := Deploy\.env
+
 .PHONY: help \
         setup install env \
         run test \
         clean \
         frontend-install frontend-dev frontend-test \
         docker-up docker-down docker-logs \
+        build-frontend build-backend \
+        push-frontend push-backend \
+        release \
         deploy down
 
 # ------------------------------------------------------------
@@ -41,6 +51,14 @@ help:
 	@Write-Host "    make docker-up       - Construye e inicia todos los servicios"
 	@Write-Host "    make docker-down     - Detiene y elimina contenedores"
 	@Write-Host "    make docker-logs     - Muestra logs en tiempo real"
+	@Write-Host ""
+	@Write-Host "  DOCKER HUB (requiere Deploy\.env con DOCKER_USERNAME, FRONTEND_IMAGE, BACKEND_IMAGE)"
+	@Write-Host "    make build-frontend  - Construye la imagen Docker del frontend"
+	@Write-Host "    make build-backend   - Construye la imagen Docker del backend"
+	@Write-Host "    make push-frontend   - Login y push de la imagen del frontend"
+	@Write-Host "    make push-backend    - Login y push de la imagen del backend"
+	@Write-Host "    make release         - Build + push de frontend y backend en un paso"
+	@Write-Host ""
 	@Write-Host "  AZURE DEPLOY (PowerShell)"
 	@Write-Host "    make deploy          - Crea / actualiza toda la infra en Azure"
 	@Write-Host "    make down            - Borra el resource group y todos sus recursos"
@@ -108,6 +126,56 @@ docker-down:
 
 docker-logs:
 	docker compose logs -f
+
+# ------------------------------------------------------------
+# DOCKER HUB — build, push y release
+# Lee DOCKER_USERNAME, DOCKER_PASSWORD, FRONTEND_IMAGE y
+# BACKEND_IMAGE desde Deploy\.env
+# ------------------------------------------------------------
+
+build-frontend:
+	@Write-Host "Construyendo imagen Docker del frontend..."
+	$$env = Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^[^#]' } | \
+	    ForEach-Object { $$k, $$v = $$_ -split '=', 2; [System.Environment]::SetEnvironmentVariable($$k.Trim(), $$v.Trim()) }; \
+	$$img = [System.Environment]::GetEnvironmentVariable("FRONTEND_IMAGE"); \
+	docker build -t $$img ./$(FRONTEND_DIR)
+	@Write-Host "Imagen del frontend construida."
+
+build-backend:
+	@Write-Host "Construyendo imagen Docker del backend..."
+	$$env = Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^[^#]' } | \
+	    ForEach-Object { $$k, $$v = $$_ -split '=', 2; [System.Environment]::SetEnvironmentVariable($$k.Trim(), $$v.Trim()) }; \
+	$$img = [System.Environment]::GetEnvironmentVariable("BACKEND_IMAGE"); \
+	docker build -t $$img ./$(BACKEND_DIR)
+	@Write-Host "Imagen del backend construida."
+
+push-frontend: build-frontend
+	@Write-Host "Publicando imagen del frontend en Docker Hub..."
+	$$env = Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^[^#]' } | \
+	    ForEach-Object { $$k, $$v = $$_ -split '=', 2; [System.Environment]::SetEnvironmentVariable($$k.Trim(), $$v.Trim()) }; \
+	$$user = [System.Environment]::GetEnvironmentVariable("DOCKER_USERNAME"); \
+	$$pass = [System.Environment]::GetEnvironmentVariable("DOCKER_PASSWORD"); \
+	$$img  = [System.Environment]::GetEnvironmentVariable("FRONTEND_IMAGE"); \
+	$$pass | docker login --username $$user --password-stdin; \
+	docker push $$img
+	@Write-Host "Frontend publicado."
+
+push-backend: build-backend
+	@Write-Host "Publicando imagen del backend en Docker Hub..."
+	$$env = Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^[^#]' } | \
+	    ForEach-Object { $$k, $$v = $$_ -split '=', 2; [System.Environment]::SetEnvironmentVariable($$k.Trim(), $$v.Trim()) }; \
+	$$user = [System.Environment]::GetEnvironmentVariable("DOCKER_USERNAME"); \
+	$$pass = [System.Environment]::GetEnvironmentVariable("DOCKER_PASSWORD"); \
+	$$img  = [System.Environment]::GetEnvironmentVariable("BACKEND_IMAGE"); \
+	$$pass | docker login --username $$user --password-stdin; \
+	docker push $$img
+	@Write-Host "Backend publicado."
+
+release: push-frontend push-backend
+	@Write-Host ""
+	@Write-Host "Release completo — ambas imágenes publicadas en Docker Hub."
+	@Write-Host "Ahora puedes ejecutar: make deploy"
+	@Write-Host ""
 
 # ------------------------------------------------------------
 # AZURE DEPLOY (PowerShell)
