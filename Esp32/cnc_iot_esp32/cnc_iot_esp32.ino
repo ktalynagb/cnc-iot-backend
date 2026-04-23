@@ -1,11 +1,11 @@
 // =============================================================
-//  CNC IoT - ESP32
+//  CNC IoT - ESP32-C3 Super Mini
 //  Sensores : DHT11 (temperatura y humedad)
 //             MPU-6050 (aceleración X/Y/Z por I2C)
-//  Destino  : POST http://20.29.102.93/datos/
+//  Destino  : POST http://20.12.182.114/datos/
+//  Nota     : GPIO21 dañado — I2C en SDA=8, SCL=9
 // =============================================================
 
-// Librerías 
 #include "credentials.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -13,34 +13,33 @@
 #include <Wire.h>
 #include <MPU6050.h>   // librería: "MPU6050" de Electronic Cats
 
-
-
-//  DHT11 
-#define DHTPIN  4          // GPIO4 : pin DATA del DHT11
-#define DHTTYPE DHT11
+// DHT11
+#define DHTPIN  0
+#define DHTTYPE DHT22   // ← corregido (era DHT22)
 DHT dht(DHTPIN, DHTTYPE);
 
-//  MPU-6050 
-// SDA : GPIO21  
-// SCL : GPIO22  
+// MPU-6050
+// SDA : GPIO8
+// SCL : GPIO9
+// (GPIO21 dañado — no usar)
 MPU6050 mpu;
 
-// Intervalo de envío 
-const unsigned long INTERVALO_MS = 5000;   // cada 5 segundos
+// Intervalo de envío
+const unsigned long INTERVALO_MS = 5000;
 unsigned long ultimoEnvio = 0;
 
-// Setup
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n=== CNC IoT - ESP32 iniciando ===");
+  Serial.println("\n=== CNC IoT - ESP32-C3 Super Mini iniciando ===");
 
   // DHT11
   dht.begin();
   Serial.println("[DHT11] Iniciado en GPIO4");
 
-  //  MPU-6050 
-  Wire.begin();          // SDA=21, SCL=22 por defecto
+  // MPU-6050 — I2C con pines explícitos para C3
+  Wire.begin(8, 9);   // SDA=8, SCL=9
+  delay(100);
   mpu.initialize();
   if (mpu.testConnection()) {
     Serial.println("[MPU-6050] Conexión OK");
@@ -48,7 +47,7 @@ void setup() {
     Serial.println("[MPU-6050] ERROR - verifica el cableado I2C");
   }
 
-  // WiFi 
+  // WiFi
   Serial.printf("[WiFi] Conectando a %s ", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
@@ -58,22 +57,21 @@ void setup() {
   Serial.printf("\n[WiFi] Conectado. IP: %s\n", WiFi.localIP().toString().c_str());
 }
 
-// Loop
 void loop() {
   unsigned long ahora = millis();
   if (ahora - ultimoEnvio < INTERVALO_MS) return;
   ultimoEnvio = ahora;
 
-  // Leer DHT11 
-  float humedad      = dht.readHumidity();
-  float temperatura  = dht.readTemperature();
+  // Leer DHT11
+  float humedad     = dht.readHumidity();
+  float temperatura = dht.readTemperature();
 
   if (isnan(humedad) || isnan(temperatura)) {
     Serial.println("[DHT11] Error de lectura - se omite este ciclo");
     return;
   }
 
-// Leer MPU-6050 (solo si está conectado)
+  // Leer MPU-6050
   float accel_x = 0.0, accel_y = 0.0, accel_z = 0.0;
 
   if (mpu.testConnection()) {
@@ -86,22 +84,21 @@ void loop() {
     Serial.println("[MPU-6050] No detectado - enviando ceros");
   }
 
-  //  Monitor serial 
+  // Monitor serial
   Serial.println("------ Nueva lectura ------");
-  Serial.printf("  Temperatura : %.2f °C\n",  temperatura);
-  Serial.printf("  Humedad     : %.2f %%\n",  humedad);
+  Serial.printf("  Temperatura : %.2f °C\n",   temperatura);
+  Serial.printf("  Humedad     : %.2f %%\n",   humedad);
   Serial.printf("  Accel X     : %.4f m/s²\n", accel_x);
   Serial.printf("  Accel Y     : %.4f m/s²\n", accel_y);
   Serial.printf("  Accel Z     : %.4f m/s²\n", accel_z);
 
-  //Verificar WiFi antes de enviar 
+  // Verificar WiFi antes de enviar
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[WiFi] Sin conexión - se omite el envío");
     return;
   }
 
-  // Construir JSON 
-  // Formato exacto que espera el backend de tu compañera
+  // Construir JSON
   char jsonBody[200];
   snprintf(jsonBody, sizeof(jsonBody),
     "{\"temperatura\":%.2f,\"humedad\":%.2f,"
@@ -109,7 +106,7 @@ void loop() {
     temperatura, humedad, accel_x, accel_y, accel_z
   );
 
-  //  HTTP POST 
+  // HTTP POST
   HTTPClient http;
   http.begin(SERVER_URL);
   http.addHeader("Content-Type", "application/json");
