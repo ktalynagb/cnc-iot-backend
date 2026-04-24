@@ -101,7 +101,6 @@ void loop() {
   }
 
   // Construir JSON 
-  // Formato exacto que espera el backend de tu compañera
   char jsonBody[200];
   snprintf(jsonBody, sizeof(jsonBody),
     "{\"temperatura\":%.2f,\"humedad\":%.2f,"
