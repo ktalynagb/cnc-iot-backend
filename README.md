@@ -7,7 +7,7 @@ Universidad Autónoma de Occidente · Práctica 1
 | Rol | Persona | Responsabilidad |
 |-----|---------|-----------------|
 | Hardware & Firmware | Valentina | ESP32-CAM + MPU-6050 + DHT11 |
-| Backend & BD | Katalyna | FastAPI + PostgreSQL + CSV |
+| Backend & BD | Ktalyna | FastAPI + PostgreSQL + CSV |
 | Dashboard + Azure | David | Frontend + despliegue en nube |
 
 ## Caso de uso
