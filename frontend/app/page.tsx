@@ -24,18 +24,27 @@ export default function Dashboard() {
             Monitoreo en tiempo real · Universidad Autónoma de Occidente
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          {isConnected ? (
-            <>
-              <Wifi className="w-4 h-4 text-emerald-500" />
-              <span className="text-emerald-600 font-medium">Conectado</span>
-            </>
-          ) : (
-            <>
-              <WifiOff className="w-4 h-4 text-red-400" />
-              <span className="text-red-500 font-medium">Sin conexión</span>
-            </>
-          )}
+        <div className="flex items-center gap-4">
+          <a
+            href="/datos/descargar/"
+            download
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-95 transition-all"
+          >
+            ⬇️ Descargar Reporte CSV
+          </a>
+          <div className="flex items-center gap-2 text-sm">
+            {isConnected ? (
+              <>
+                <Wifi className="w-4 h-4 text-emerald-500" />
+                <span className="text-emerald-600 font-medium">Conectado</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-red-400" />
+                <span className="text-red-500 font-medium">Sin conexión</span>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -47,21 +56,21 @@ export default function Dashboard() {
             value={latest ? latest.temperatura.toFixed(1) : "—"}
             unit="°C"
             Icon={Thermometer}
-            alert={!!latest?.alerta}
+            alert={!!latest?.motivo_alerta?.includes("Temperatura")}
           />
           <KpiCard
             label="Humedad"
             value={latest ? latest.humedad.toFixed(0) : "—"}
             unit="%"
             Icon={Droplets}
-            alert={!!latest?.alerta}
+            alert={!!latest?.motivo_alerta?.includes("Humedad")}
           />
           <KpiCard
             label="Vibración"
             value={latest ? latest.vibracion_total.toFixed(3) : "—"}
             unit="m/s²"
             Icon={Activity}
-            alert={!!latest?.alerta}
+            alert={!!latest?.motivo_alerta?.includes("Vibración")}
           />
         </section>
 

@@ -32,7 +32,7 @@ class CNCSimulator(ctk.CTk):
         
         ctk.CTkLabel(self.frame_url, text="Backend URL:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=(10,0))
         self.entry_url = ctk.CTkEntry(self.frame_url)
-        self.entry_url.insert(0, "http://20.12.182.114/datos/")
+        self.entry_url.insert(0, "http://104.43.141.110/datos/")
         self.entry_url.pack(padx=10, pady=10, fill="x")
 
         # --- Sección de Modo ---
@@ -102,7 +102,7 @@ class CNCSimulator(ctk.CTk):
                 "humedad": round(random.uniform(40.0, 70.0), 2),
                 "accel_x": round(random.uniform(-2.0, 2.0), 4),
                 "accel_y": round(random.uniform(-2.0, 2.0), 4),
-                "accel_z": round(random.uniform(8.0, 11.0), 4) # Gravedad +- vibración
+                "accel_z": round(random.uniform(-2.0, 2.0), 4) # Gravedad +- vibración
             }
 
     def send_data(self):

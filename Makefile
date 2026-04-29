@@ -10,12 +10,23 @@ BACKEND_DIR  := backend
 FRONTEND_DIR := frontend
 NPM          := npm
 
+# Variables fijas 
+DOCKER_USERNAME := davids117
+FRONTEND_IMAGE  := davids117/cnc-iot-backend-frontend:latest
+BACKEND_IMAGE   := davids117/cnc-iot-backend-backend:latest
+
+# El archivo .env solo se usará para la contraseña en el login 
+DEPLOY_ENV   := Deploy\.env
+
 .PHONY: help \
         setup install env \
         run test \
         clean \
         frontend-install frontend-dev frontend-test \
         docker-up docker-down docker-logs \
+        build-frontend build-backend \
+        push-frontend push-backend \
+        release \
         deploy down
 
 # ------------------------------------------------------------
@@ -41,9 +52,16 @@ help:
 	@Write-Host "    make docker-up       - Construye e inicia todos los servicios"
 	@Write-Host "    make docker-down     - Detiene y elimina contenedores"
 	@Write-Host "    make docker-logs     - Muestra logs en tiempo real"
-	@Write-Host "  AZURE DEPLOY (PowerShell)"
-	@Write-Host "    make deploy          - Crea / actualiza toda la infra en Azure"
-	@Write-Host "    make down            - Borra el resource group y todos sus recursos"
+	@Write-Host ""
+	@Write-Host "  DOCKER HUB (Variables fijas configuradas)"
+	@Write-Host "    make build-deploy  - Construye la imagen Docker del frontend y backend"
+	@Write-Host "    make push-frontend   - Login y push de la imagen del frontend"
+	@Write-Host "    make push-backend    - Login y push de la imagen del backend"
+	@Write-Host "    make release         - Push de frontend y backend en un paso"
+	@Write-Host ""
+	@Write-Host "  AZURE DEPLOY"
+	@Write-Host "    make deploy          - Ejecuta Deploy\deploy.ps1"
+	@Write-Host "    make down            - Ejecuta Deploy\down.ps1"
 	@Write-Host ""
 
 # ------------------------------------------------------------
@@ -110,12 +128,48 @@ docker-logs:
 	docker compose logs -f
 
 # ------------------------------------------------------------
+# DOCKER HUB — build, push y release
+# Lee DOCKER_USERNAME, DOCKER_PASSWORD, FRONTEND_IMAGE y
+# BACKEND_IMAGE desde Deploy\.env
+# ------------------------------------------------------------
+
+build-deploy:
+	@Write-Host "Construyendo imágenes Docker para frontend y backend..."
+	docker compose build
+	@Write-Host "Imágenes construidas: $(FRONTEND_IMAGE) y $(BACKEND_IMAGE)."
+
+push-frontend:
+	@Write-Host "Publicando imagen del frontend en Docker Hub..."
+	@$$pass = (Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { ($$_ -split '=', 2)[1].Trim() }); $$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; docker push $(FRONTEND_IMAGE)
+	@Write-Host "Frontend publicado."
+
+push-backend:
+	@Write-Host "Publicando imagen del backend en Docker Hub..."
+	@$$pass = (Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { ($$_ -split '=', 2)[1].Trim() }); $$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; docker push $(BACKEND_IMAGE)
+	@Write-Host "Backend publicado."
+
+release: 
+	@Write-Host "Publicando imagen del frontend en Docker Hub..."
+	@$$pass = (Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { ($$_ -split '=', 2)[1].Trim() }); $$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; docker push $(FRONTEND_IMAGE)
+	@Write-Host "Frontend publicado."
+	@Write-Host "Publicando imagen del backend en Docker Hub..."
+	@$$pass = (Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^DOCKER_PASSWORD' } | ForEach-Object { ($$_ -split '=', 2)[1].Trim() }); $$pass | docker login --username $(DOCKER_USERNAME) --password-stdin; docker push $(BACKEND_IMAGE)
+	@Write-Host "Backend publicado."
+	@Write-Host ""
+	@Write-Host "Release completo — ambas imágenes publicadas en Docker Hub."
+	@Write-Host "Ahora puedes ejecutar: make deploy" 
+	@Write-Host ""
+
+# ------------------------------------------------------------
 # AZURE DEPLOY (PowerShell)
 # ------------------------------------------------------------
 deploy:
 	@Write-Host "Ejecutando deploy completo en Azure..."
-	powershell -NoProfile -ExecutionPolicy Bypass -File "Deploy\deploy.ps1"
+	powershell -NoProfile -ExecutionPolicy Bypass -Command "& { . 'Deploy\deploy.ps1' }"
 
 down:
 	@Write-Host "Eliminando recursos de Azure..."
-	powershell -NoProfile -ExecutionPolicy Bypass -File "Deploy\down.ps1"
+	powershell -NoProfile -ExecutionPolicy Bypass -Command "& { . 'Deploy\down.ps1' }"
+
+deploy-logs:
+	@Write-Host "Cargando configuracion desde $(DEPLOY_ENV) y consultando logs de Azure..."; Get-Content "$(DEPLOY_ENV)" | Where-Object { $$_ -match '^[^#]' -and $$_ -match '=' } | ForEach-Object { $$k, $$v = $$_ -split '=', 2; Set-Item -Path ('Env:' + $$k.Trim()) -Value $$v.Trim() }; Write-Host "`n--- Backend ($$env:ACI_BACKEND_NAME) ---"; az container logs --resource-group $$env:RG_NAME --name $$env:ACI_BACKEND_NAME; Write-Host "`n--- Frontend ($$env:ACI_FRONTEND_NAME) ---"; az container logs --resource-group $$env:RG_NAME --name $$env:ACI_FRONTEND_NAME; Write-Host "`n--- Datastore ($$env:ACI_DB_NAME) ---"; az container logs --resource-group $$env:RG_NAME --name $$env:ACI_DB_NAME

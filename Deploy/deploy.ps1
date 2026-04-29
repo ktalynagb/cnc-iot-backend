@@ -1,8 +1,8 @@
 <#
-Deploy script maestro para Azure (Versión Final - A Prueba de Fallos):
+Deploy script maestro para Azure (Version Final - A Prueba de Fallos):
 - Crea RG, VNet (public + private).
-- Despliega AppGW vía CLI en puerto dummy (8080) temporalmente.
-- Despliega ACI superando Rate Limits con Autenticación explícita de Docker Hub.
+- Despliega AppGW via CLI en puerto dummy (8080) temporalmente.
+- Despliega ACI superando Rate Limits con Autenticacion explicita de Docker Hub.
 - Frontend usa el puerto 3000 (Next.js nativo), Backend usa el puerto 8000.
 - Configura proxy inverso con rutas tolerantes: "/datos" y "/datos/*" -> Backend.
 #>
@@ -14,7 +14,7 @@ param(
 
 function Load-EnvFile($path) {
     if (!(Test-Path $path)) {
-        Write-Error "No se encontró $path. Crea .env basado en .env.example"
+        Write-Error "No se encontro $path. Crea .env basado en .env.example"
         exit 1
     }
     Get-Content $path | ForEach-Object {
@@ -32,7 +32,7 @@ function Load-EnvFile($path) {
 # 1. Cargar variables
 Load-EnvFile -path $EnvFile
 
-# Validar variables mínimas incluyendo credenciales Docker
+# Validar variables minimas incluyendo credenciales Docker
 $required = @(
     "AZ_SUBSCRIPTION_ID","AZ_LOCATION","RG_NAME","VNET_NAME",
     "PUBLIC_SUBNET_NAME","PRIVATE_SUBNET_NAME","VNET_PREFIX",
@@ -71,14 +71,14 @@ $dbUser = $env:DB_USER
 $dbPass = $env:DB_PASSWORD
 $dbDatabase = $env:DB_NAME
 $publicFrontendPort = if ($env:FRONTEND_PORT) { [int]$env:FRONTEND_PORT } else { 80 }
-$containerFrontendPort = 3000 # Next.js nativo
+$containerFrontendPort = 3000
 $backendPort = if ($env:BACKEND_PORT) { [int]$env:BACKEND_PORT } else { 8000 }
 $dbPort = if ($env:DB_PORT) { [int]$env:DB_PORT } else { 5432 }
 $appgwSku = if ($env:APPGW_SKU) { $env:APPGW_SKU } else { "Standard_v2" }
 $appgwCapacity = if ($env:APPGW_CAPACITY) { [int]$env:APPGW_CAPACITY } else { 1 }
 
 # 2. Setup Base
-Write-Host "Seleccionando suscripción $subId..."
+Write-Host "Seleccionando suscripcion $subId..."
 az account set --subscription $subId
 
 Write-Host "Creando resource group $rg ..."
@@ -91,7 +91,7 @@ az network vnet subnet create --resource-group $rg --vnet-name $vnet --name $pri
 $pubSubnetId = az network vnet subnet show --resource-group $rg --vnet-name $vnet --name $pubSubnet --query id -o tsv
 $privSubnetId = az network vnet subnet show --resource-group $rg --vnet-name $vnet --name $privSubnet --query id -o tsv
 
-Write-Host "Creando IP pública $publicIpName..."
+Write-Host "Creando IP publica $publicIpName..."
 az network public-ip create --resource-group $rg --name $publicIpName --sku Standard --allocation-method Static | Out-Null
 $publicIp = az network public-ip show --resource-group $rg --name $publicIpName --query "ipAddress" -o tsv
 
@@ -111,11 +111,11 @@ Start-Sleep -Seconds 10
 $backendPrivateIp = (az container show --resource-group $rg --name $backendName -o json | ConvertFrom-Json).ipAddress.ip
 
 Write-Host "Desplegando frontend (Puerto $containerFrontendPort)..."
-az container create --resource-group $rg --name $frontendName --image $frontendImage --os-type Linux --cpu 1.0 --memory 1.5 --subnet $privSubnetId --ports $containerFrontendPort --environment-variables BACKEND_URL="http://${backendPrivateIp}:${backendPort}" --ip-address Private --restart-policy OnFailure --registry-login-server index.docker.io --registry-username $env:DOCKER_USERNAME --registry-password $env:DOCKER_PASSWORD | Out-Null
+az container create --resource-group $rg --name $frontendName --image $frontendImage --os-type Linux --cpu 1.0 --memory 1.5 --subnet $privSubnetId --ports $containerFrontendPort --environment-variables BACKEND_URL="http://$($backendPrivateIp):$($backendPort)" --ip-address Private --restart-policy OnFailure --registry-login-server index.docker.io --registry-username $env:DOCKER_USERNAME --registry-password $env:DOCKER_PASSWORD | Out-Null
 Start-Sleep -Seconds 10
 $frontendPrivateIp = (az container show --resource-group $rg --name $frontendName -o json | ConvertFrom-Json).ipAddress.ip
 
-# 5. Configuración de Enrutamiento (Proxy Inverso)
+# 5. Configuracion de Enrutamiento (Proxy Inverso)
 Write-Host "Configurando el Proxy Inverso (Rutas e IPs)..."
 az network application-gateway frontend-port create --gateway-name $appgw --resource-group $rg --name PortPublico --port $publicFrontendPort | Out-Null
 
@@ -129,7 +129,6 @@ az network application-gateway http-listener create --gateway-name $appgw --reso
 
 az network application-gateway url-path-map create --gateway-name $appgw --resource-group $rg --name UrlPathMap --rule-name DatosRule --paths "/datos" "/datos/*" --address-pool BackendPool --http-settings BackendHttpSettings --default-address-pool FrontendPoolExplicit --default-http-settings FrontendHttpSettings | Out-Null
 
-# CORRECCIÓN AQUÍ: Se agregan --address-pool y --http-settings obligatorios para la regla principal
 az network application-gateway rule create --gateway-name $appgw --resource-group $rg --name RequestRule-PathBased --rule-type PathBasedRouting --http-listener AppGwFrontListener --url-path-map UrlPathMap --address-pool FrontendPoolExplicit --http-settings FrontendHttpSettings --priority 100 | Out-Null
 
 # 6. Limpieza de Puertos Bloqueados
@@ -138,6 +137,7 @@ az network application-gateway rule delete --gateway-name $appgw --resource-grou
 az network application-gateway http-listener delete --gateway-name $appgw --resource-group $rg --name appGatewayHttpListener | Out-Null
 az network application-gateway frontend-port delete --gateway-name $appgw --resource-group $rg --name appGatewayFrontendPort | Out-Null
 
-Write-Host "`n✅ ¡Infraestructura Desplegada Exitosamente!"
-Write-Host "🖥️  Acceso al Dashboard: http://${publicIp}:${publicFrontendPort}"
-Write-Host "📡  Endpoint para Microcontroladores: http://${publicIp}:${publicFrontendPort}/datos"
+Write-Host ""
+Write-Host "DONE: Infraestructura Desplegada Exitosamente"
+Write-Host ("Acceso al Dashboard: http://" + $publicIp + ":" + $publicFrontendPort)
+Write-Host ("Endpoint para Microcontroladores: http://" + $publicIp + ":" + $publicFrontendPort + "/datos")

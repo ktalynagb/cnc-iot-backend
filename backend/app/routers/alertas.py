@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models.lectura import Lectura
 from app.schemas.lectura import AlertaSalida
 
-router = APIRouter(prefix="/alertas", tags=["Alertas"])
+router = APIRouter(prefix="/datos/alertas", tags=["Alertas"])
 
 
 @router.get("/", response_model=List[AlertaSalida])
@@ -16,11 +16,11 @@ def obtener_alertas(
     db: Session = Depends(get_db),
 ):
     """
-    **BE-3** — Retorna solo las lecturas con alerta activa, más recientes primero.
+    **BE-5** — Retorna solo las lecturas con alerta activa, más recientes primero.
     """
     alertas = (
         db.query(Lectura)
-        .filter(Lectura.alerta == True)
+        .filter(Lectura.alerta.is_(True))
         .order_by(Lectura.timestamp.desc())
         .limit(limit)
         .all()

@@ -1,13 +1,16 @@
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.lectura import Lectura
 from app.schemas.lectura import LecturaEntrada, LecturaSalida
 from app.alertas import calcular_vibracion, evaluar_alerta
+from app.config import settings
 from app.csv_writer import guardar_lectura_csv
 
 router = APIRouter(prefix="/datos", tags=["Datos"])
@@ -57,3 +60,24 @@ def obtener_datos(
         .all()
     )
     return lecturas
+
+
+@router.get("/descargar/", tags=["Datos"])
+def descargar_csv():
+    """
+    **BE-5** — Sirve el archivo CSV de lecturas como descarga directa.
+    El nombre del archivo incluye la fecha/hora de la descarga.
+    """
+    csv_path = Path(settings.CSV_PATH)
+    if not csv_path.exists():
+        raise HTTPException(status_code=404, detail="El archivo CSV no existe. Envía al menos una lectura primero.")
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"lecturas_cnc_{timestamp}.csv"
+
+    return FileResponse(
+        path=str(csv_path),
+        media_type="text/csv",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
