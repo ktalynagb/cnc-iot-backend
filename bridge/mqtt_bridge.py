@@ -33,6 +33,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 from app.alertas import calcular_vibracion, evaluar_alerta
 from app.config import settings
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"))
 from app.csv_writer import guardar_lectura_csv
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -88,7 +90,7 @@ def _escribir_influx(ts: datetime, temp: float, hum: float,
         .field("accel_z",        az)
         .field("vibracion_total", vib)
         .field("motivo_alerta",  motivo or "")
-        .time(ts, WritePrecision.SECONDS)
+        .time(ts, "s")
     )
     _write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
     log.info("  → InfluxDB ✓  vib=%.4f  alerta=%s", vib, alerta)
