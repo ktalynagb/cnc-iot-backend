@@ -2,7 +2,7 @@
 //  CNC IoT - ESP32
 //  Sensores : DHT11 (temperatura y humedad)
 //             MPU-6050 (aceleración X/Y/Z por I2C)
-//  Destino  : POST http://20.29.102.93/datos/
+//  Destino  : POST http://20.12.182.114/datos/
 // =============================================================
 
 // Librerías 
@@ -13,11 +13,9 @@
 #include <Wire.h>
 #include <MPU6050.h>   // librería: "MPU6050" de Electronic Cats
 
-
-
 //  DHT11 
 #define DHTPIN  4          // GPIO4 : pin DATA del DHT11
-#define DHTTYPE DHT11
+#define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
 //  MPU-6050 
@@ -37,7 +35,7 @@ void setup() {
 
   // DHT11
   dht.begin();
-  Serial.println("[DHT11] Iniciado en GPIO4");
+  Serial.println("[DHT22] Iniciado en GPIO4");
 
   //  MPU-6050 
   Wire.begin();          // SDA=21, SCL=22 por defecto
