@@ -38,17 +38,12 @@ $VM_IMAGE         = "Ubuntu2204"
 $VM_SIZE          = "Standard_B1s"
 $ADMIN_USER       = "ubuntu"
 $DNS_LABEL        = "cnc-iot-david"
-$CLOUD_INIT_FILE  = "cloud-init.txt"
 
 # IP local del operador (para restriccion SSH)
 Write-Host "Obteniendo IP publica local..." -ForegroundColor Yellow
 $MY_PUBLIC_IP = (Invoke-RestMethod http://ipinfo.io/ip).Trim()
 Write-Host "  -> IP local detectada: $MY_PUBLIC_IP" -ForegroundColor White
 
-
-# =====================================================================
-# --- FASE 2: Red Virtual (VNet) y Subredes ---
-# =====================================================================
 
 # =====================================================================
 # --- FASE 4: Maquinas Virtuales e Instalacion de Docker ---
@@ -59,9 +54,17 @@ Write-Host "============================================================" -Foreg
 Write-Host " FASE 4: Maquinas Virtuales e Instalacion de Docker" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
-# 1. Creamos el archivo cloud-init.txt asegurando la codificación correcta
-Write-Host "Generando archivo cloud-init.txt..." -ForegroundColor Yellow
-$cloudInitContent = @"
+# -----------------------------------------------------------------------
+# FIX: Codificamos el cloud-init directamente en memoria (en Base64),
+# usando UTF-8 SIN BOM y normalizando los saltos de linea a LF.
+# Esto evita por completo los problemas de CRLF y BOM de Windows que
+# corrompian la cadena base64 que Azure CLI intentaba generar.
+# -----------------------------------------------------------------------
+
+Write-Host "Generando y codificando cloud-init en Base64 (UTF-8 sin BOM, LF)..." -ForegroundColor Yellow
+
+# Definimos el contenido con here-string (PowerShell agrega CRLF)
+$cloudInitRaw = @"
 #cloud-config
 package_update: true
 package_upgrade: true
@@ -74,9 +77,17 @@ runcmd:
   - usermod -aG docker ubuntu
 "@
 
-# Usamos utf8BOM porque Azure CLI a veces lo prefiere cuando lee desde Windows
-$cloudInitContent | Out-File -FilePath "cloud-init.txt" -Encoding utf8 -Force
-Write-Host "  -> Archivo cloud-init.txt generado exitosamente." -ForegroundColor Green
+# 1. Normalizamos CRLF -> LF para que Linux lo interprete correctamente
+$cloudInitLF = $cloudInitRaw -replace "`r`n", "`n"
+
+# 2. Convertimos a bytes con UTF-8 SIN BOM
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$cloudInitBytes = $utf8NoBom.GetBytes($cloudInitLF)
+
+# 3. Codificamos a Base64
+$cloudInitB64 = [Convert]::ToBase64String($cloudInitBytes)
+
+Write-Host "  -> cloud-init codificado correctamente (longitud base64: $($cloudInitB64.Length))." -ForegroundColor Green
 
 # --- VM Publica ---
 Write-Host "Desplegando VM publica '$VM_PUBLIC_NAME' en subred '$PUBLIC_SUBNET_NAME'..." -ForegroundColor Yellow
@@ -92,7 +103,7 @@ az vm create `
     --nsg                   $NSG_PUBLIC_NAME `
     --public-ip-sku         Standard `
     --public-ip-address-dns-name $DNS_LABEL `
-    --custom-data           "@cloud-init.txt" `
+    --custom-data           $cloudInitB64 `
     --output                none
 Write-Host "  -> VM publica '$VM_PUBLIC_NAME' desplegada." -ForegroundColor Green
 
@@ -108,8 +119,8 @@ az vm create `
     --vnet-name             $VNET_NAME `
     --subnet                $PRIVATE_SUBNET_NAME `
     --nsg                   $NSG_PRIVATE_NAME `
-    --public-ip-address     '""' `
-    --custom-data           "@cloud-init.txt" `
+    --public-ip-address     "" `
+    --custom-data           $cloudInitB64 `
     --output                none
 Write-Host "  -> VM privada '$VM_PRIVATE_NAME' desplegada (sin IP publica)." -ForegroundColor Green
 
