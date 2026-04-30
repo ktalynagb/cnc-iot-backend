@@ -17,7 +17,7 @@ Write-Host "============================================================" -Foreg
 
 # --- Variables Globales ---
 $RG_NAME       = "rg-cnc-iot"
-$LOCATION      = "eastus"
+$LOCATION      = "centralus"
 
 # Redes
 $VNET_NAME            = "vnet-iot"
@@ -38,7 +38,7 @@ $VM_IMAGE         = "Ubuntu2204"
 $VM_SIZE          = "Standard_B1s"
 $ADMIN_USER       = "ubuntu"
 $DNS_LABEL        = "cnc-iot-david"
-$CLOUD_INIT_FILE  = "cloud-init.txt"
+$CLOUD_INIT_FILE  = "$PWD/cloud-init.txt"
 
 # IP local del operador (para restriccion SSH)
 Write-Host "Obteniendo IP publica local..." -ForegroundColor Yellow
@@ -221,7 +221,7 @@ runcmd:
   - systemctl start docker
   - usermod -aG docker ubuntu
 "@
-$cloudInitContent | Out-File -FilePath $CLOUD_INIT_FILE -Encoding utf8 -Force
+$cloudInitContent | Out-File -FilePath $CLOUD_INIT_FILE -Encoding ascii -Force
 Write-Host "  -> Archivo '$CLOUD_INIT_FILE' generado." -ForegroundColor Green
 
 # --- VM Publica ---
@@ -254,7 +254,7 @@ az vm create `
     --vnet-name             $VNET_NAME `
     --subnet                $PRIVATE_SUBNET_NAME `
     --nsg                   $NSG_PRIVATE_NAME `
-    --public-ip-address     "" `
+    --public-ip-address '\"\"' `
     --custom-data           $CLOUD_INIT_FILE `
     --output                none
 Write-Host "  -> VM privada '$VM_PRIVATE_NAME' desplegada (sin IP publica)." -ForegroundColor Green
