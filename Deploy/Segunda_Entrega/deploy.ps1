@@ -107,7 +107,7 @@ az network nsg create `
     --output         none
 Write-Host "  -> NSG publico creado." -ForegroundColor Green
 
-Write-Host "  Agregando regla SSH (puerto 22)..." -ForegroundColor Yellow
+Write-Host "  Agregando regla SSH (puerto 22, solo desde IP del operador: $MY_PUBLIC_IP)..." -ForegroundColor Yellow
 az network nsg rule create `
     --resource-group     $RG_NAME `
     --nsg-name           $NSG_PUBLIC_NAME `
@@ -115,7 +115,7 @@ az network nsg rule create `
     --priority           100 `
     --protocol           Tcp `
     --direction          Inbound `
-    --source-address-prefixes "*" `
+    --source-address-prefixes "$MY_PUBLIC_IP/32" `
     --source-port-ranges "*" `
     --destination-address-prefixes "*" `
     --destination-port-ranges 22 `

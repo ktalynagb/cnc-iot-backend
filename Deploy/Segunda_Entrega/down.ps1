@@ -1,6 +1,6 @@
 <#
 down.ps1 elimina todos los recursos creados por deploy.ps1 (Segunda Entrega).
-ADVERTENCIA: Esto borrara el resource group 'rg-cnc-iot' y TODOS los recursos dentro,
+ADVERTENCIA: Esto borrará el resource group 'rg-cnc-iot' y TODOS los recursos dentro,
 incluyendo VMs, VNet, NSGs y el archivo cloud-init.txt local.
 #>
 
