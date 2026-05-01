@@ -17,6 +17,7 @@ dependencies = [
     "ruff",
     "requests>=2.33.1",
     "customtkinter>=5.2.2",
+    "paho-mqtt>=2.1.0",
 ]
 
 [project.optional-dependencies]
