@@ -1,28 +1,36 @@
 import json
 import random
 import time
+import signal
+import sys
 import paho.mqtt.client as mqtt
 
-# Configuración
-MQTT_BROKER = "52.165.194.217"   # cambia por tu IP pública de la VM front
+MQTT_BROKER = "52.165.194.217"
 MQTT_PORT = 1883
 MQTT_USER = "flux_user"
 MQTT_PASSWORD = "flux_pass"
 
-TOPIC_TEMP = "flux/cnc1/temperatura"
-TOPIC_HUM = "flux/cnc1/humedad"
-TOPIC_VIB = "flux/cnc1/vibracion"
+TOPIC_DATA = "flux/cnc1/datos"
+INTERVALO = 5  # segundos
 
-INTERVALO = 2  # segundos
+running = True
+
+def stop_handler(sig, frame):
+    global running
+    running = False
+    print("\nDeteniendo sender...")
+
+signal.signal(signal.SIGINT, stop_handler)
+signal.signal(signal.SIGTERM, stop_handler)
 
 def generar_datos():
-    temperatura = round(random.uniform(20.0, 45.0), 2)
-    humedad = round(random.uniform(30.0, 80.0), 2)
-    accel_x = round(random.uniform(-2.0, 2.0), 4)
-    accel_y = round(random.uniform(-2.0, 2.0), 4)
-    accel_z = round(random.uniform(-2.0, 2.0), 4)
-
-    return temperatura, humedad, accel_x, accel_y, accel_z
+    return {
+        "temperatura": round(random.uniform(20.0, 45.0), 2),
+        "humedad": round(random.uniform(30.0, 80.0), 2),
+        "accel_x": round(random.uniform(-2.0, 2.0), 4),
+        "accel_y": round(random.uniform(-2.0, 2.0), 4),
+        "accel_z": round(random.uniform(-2.0, 2.0), 4),
+    }
 
 def conectar():
     client = mqtt.Client()
@@ -34,28 +42,29 @@ def publicar_loop():
     client = conectar()
     print(f"Conectado a {MQTT_BROKER}:{MQTT_PORT}")
 
-    while True:
-        temperatura, humedad, ax, ay, az = generar_datos()
+    try:
+        while running:
+            data = generar_datos()
+            payload = json.dumps(data)
 
-        payload_temp = json.dumps({"value": temperatura})
-        payload_hum = json.dumps({"value": humedad})
-        payload_vib = json.dumps({
-            "accel_x": ax,
-            "accel_y": ay,
-            "accel_z": az
-        })
+            result = client.publish(TOPIC_DATA, payload, qos=1)
+            if result.rc != mqtt.MQTT_ERR_SUCCESS:
+                print(f"Error publicando: rc={result.rc}")
+            else:
+                print("Enviado:")
+                print(payload)
+                print("-" * 50)
 
-        client.publish(TOPIC_TEMP, payload_temp, qos=1, retain=True)
-        client.publish(TOPIC_HUM, payload_hum, qos=1, retain=True)
-        client.publish(TOPIC_VIB, payload_vib, qos=1, retain=True)
+            time.sleep(INTERVALO)
 
-        print("Enviado:")
-        print("  temperatura:", payload_temp)
-        print("  humedad    :", payload_hum)
-        print("  vibracion  :", payload_vib)
-        print("-" * 50)
-
-        time.sleep(INTERVALO)
+    except KeyboardInterrupt:
+        print("\nInterrumpido por teclado.")
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+        print("Sender detenido.")
 
 if __name__ == "__main__":
     publicar_loop()

@@ -2,11 +2,11 @@
 #define CREDENTIALS_H
 
 // WiFi
-const char* WIFI_SSID     = "TU_RED_WIFI";
-const char* WIFI_PASSWORD = "TU_PASSWORD_WIFI";
+const char* WIFI_SSID     = "COWORKING";
+const char* WIFI_PASSWORD = "coworking2026..";
 
-// MQTT (Entrega 2 — reemplaza SERVER_URL)
-const char* MQTT_BROKER   = "IP_PUBLICA_AWS";
+// MQTT
+const char* MQTT_BROKER   = "52.165.194.217";
 const char* MQTT_USER     = "flux_user";
 const char* MQTT_PASSWORD = "flux_pass";
 

@@ -1,22 +1,20 @@
-
 //  CNC IoT - ESP32  |  Entrega 2 — MQTT
-//  Sensores : DHT11/22 (temperatura y humedad)  — GPIO4
+//  Sensores : DHT11/22 (temperatura y humedad)  — GPIO0
 //             MPU-6050 (aceleración X/Y/Z)      — SDA=8, SCL=9
 //  Destino  : Broker Mosquitto en AWS vía MQTT
 
-
 #include "credentials.h"
 #include <WiFi.h>
-#include <PubSubClient.h>   // Instalar librería: "PubSubClient" de Nick O'Leary
+#include <PubSubClient.h>
 #include <DHT.h>
 #include <Wire.h>
 
-//  DHT 
-#define DHTPIN   4
+//  DHT
+#define DHTPIN   0
 #define DHTTYPE  DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
-//  MPU-6050 
+//  MPU-6050
 #define MPU_ADDR  0x68
 #define SDA_PIN   8
 #define SCL_PIN   9
@@ -24,7 +22,7 @@ DHT dht(DHTPIN, DHTTYPE);
 //  MQTT
 #define MQTT_PORT  1883
 
-WiFiClient   wifiClient;
+WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
 //  Intervalo
@@ -71,7 +69,6 @@ void conectarMQTT() {
 
   while (!mqtt.connected()) {
     Serial.printf("[MQTT] Conectando a %s...", MQTT_BROKER);
-    // client_id único basado en MAC para evitar colisiones
     String clientId = "ESP32-CNC-" + WiFi.macAddress();
 
     if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD)) {
@@ -113,20 +110,18 @@ void setup() {
 // Loop
 
 void loop() {
-  // Mantener conexión MQTT viva
   if (!mqtt.connected()) {
     Serial.println("[MQTT] Desconectado - reconectando...");
     conectarMQTT();
   }
   mqtt.loop();
 
-  // Respetar intervalo de envío
   unsigned long ahora = millis();
   if (ahora - ultimoEnvio < INTERVALO_MS) return;
   ultimoEnvio = ahora;
 
-  //  Leer DHT22
-  float humedad     = dht.readHumidity();
+  // Leer DHT22
+  float humedad = dht.readHumidity();
   float temperatura = dht.readTemperature();
 
   if (isnan(humedad) || isnan(temperatura)) {
@@ -134,7 +129,7 @@ void loop() {
     return;
   }
 
-  //Leer MPU-6050
+  // Leer MPU-6050
   float accel_x = 0.0, accel_y = 0.0, accel_z = 0.0;
   if (mpuOk) {
     accel_x = (mpuLeerInt16(0x3B) / 16384.0) * 9.81;
@@ -144,34 +139,20 @@ void loop() {
     Serial.println("[MPU-6050] No detectado - enviando ceros");
   }
 
-  //Monitor serial
+  // Monitor serial
   Serial.println("------ Nueva lectura ------");
-  Serial.printf("  Temperatura : %.2f °C\n",   temperatura);
-  Serial.printf("  Humedad     : %.2f %%\n",   humedad);
+  Serial.printf("  Temperatura : %.2f °C\n", temperatura);
+  Serial.printf("  Humedad     : %.2f %%\n", humedad);
   Serial.printf("  Accel X     : %.4f m/s²\n", accel_x);
   Serial.printf("  Accel Y     : %.4f m/s²\n", accel_y);
   Serial.printf("  Accel Z     : %.4f m/s²\n", accel_z);
 
-  //Construir y publicar los 3 topics
-  char payload[120];
-
-  //  Temperatura
-  snprintf(payload, sizeof(payload), "{\"value\":%.2f}", temperatura);
-  bool okTemp = mqtt.publish("flux/cnc1/temperatura", payload, true);
-  Serial.printf("[MQTT] flux/cnc1/temperatura  → %s  %s\n",
-                payload, okTemp ? "OK" : " ERROR");
-
-  //  Humedad
-  snprintf(payload, sizeof(payload), "{\"value\":%.2f}", humedad);
-  bool okHum = mqtt.publish("flux/cnc1/humedad", payload, true);
-  Serial.printf("[MQTT] flux/cnc1/humedad      → %s  %s\n",
-                payload, okHum ? "OK" : " ERROR");
-
-  //  Vibración
+  // Construir payload único
+  char payload[180];
   snprintf(payload, sizeof(payload),
-    "{\"accel_x\":%.4f,\"accel_y\":%.4f,\"accel_z\":%.4f}",
-    accel_x, accel_y, accel_z);
-  bool okVib = mqtt.publish("flux/cnc1/vibracion", payload, true);
-  Serial.printf("[MQTT] flux/cnc1/vibracion    → %s  %s\n",
-                payload, okVib ? "OK" : " ERROR");
+           "{\"temperatura\":%.2f,\"humedad\":%.2f,\"accel_x\":%.4f,\"accel_y\":%.4f,\"accel_z\":%.4f}",
+           temperatura, humedad, accel_x, accel_y, accel_z);
+
+  bool ok = mqtt.publish("flux/cnc1/datos", payload, true);
+  Serial.printf("[MQTT] flux/cnc1/datos → %s  %s\n", payload, ok ? "OK" : "ERROR");
 }
