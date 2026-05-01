@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# provision-front.sh — VM Pública: Mosquitto (INF-2) + Grafana (INF-5)
-# =====================================================================
-# Ejecutado por az vm run-command invoke como root.
-#
-# Parámetros posicionales inyectados desde fase4.ps1:
-#   $1 = IP privada de vm-iot-back  (InfluxDB)
-#   $2 = Token de administrador de InfluxDB
-#
-# Servicios instalados:
-#   - Eclipse Mosquitto 2.x en el puerto 1883 con autenticación usuario/contraseña
-#   - Grafana 10.x en el puerto 3000 con datasource InfluxDB pre-configurado
-# =====================================================================
 set -euo pipefail
 
 VM_BACK_IP="${1:?ERROR: falta el argumento 1 (IP privada de vm-iot-back)}"
@@ -27,22 +15,18 @@ echo " [FRONT] Provisionando vm-iot-front (Mosquitto + Grafana)"
 echo " vm-iot-back IP : ${VM_BACK_IP}"
 echo "================================================================"
 
-# ── 1. Instalar Docker y Docker Compose ─────────────────────────────
 echo "[1/6] Instalando Docker y Docker Compose..."
 apt-get update -qq
 apt-get install -y --no-install-recommends docker.io docker-compose
 systemctl enable docker
 systemctl start docker
-usermod -aG docker ubuntu
 
-# Esperar a que el daemon de Docker esté listo
 until docker info > /dev/null 2>&1; do
     echo "  Esperando que Docker arranque..."
     sleep 2
 done
 echo "  -> Docker listo."
 
-# ── 2. Crear estructura de directorios ──────────────────────────────
 echo "[2/6] Creando estructura de directorios en ${WORK_DIR}..."
 mkdir -p "${WORK_DIR}/mosquitto/config"
 mkdir -p "${WORK_DIR}/mosquitto/data"
@@ -50,9 +34,7 @@ mkdir -p "${WORK_DIR}/mosquitto/log"
 mkdir -p "${WORK_DIR}/grafana/provisioning/datasources"
 mkdir -p "${WORK_DIR}/grafana/provisioning/dashboards"
 
-# ── 3. Mosquitto: configuración con autenticación ───────────────────
 echo "[3/6] Configurando Mosquitto con autenticación usuario/contraseña..."
-
 cat > "${WORK_DIR}/mosquitto/config/mosquitto.conf" << 'EOF'
 listener 1883
 allow_anonymous false
@@ -63,20 +45,17 @@ log_dest stdout
 log_dest file /mosquitto/log/mosquitto.log
 EOF
 
-# Generar el archivo de contraseñas usando la imagen oficial de Mosquitto
-# (evita instalar mosquitto-clients en el host)
-docker run --rm \
-    -v "${WORK_DIR}/mosquitto/config:/mosquitto/config" \
-    eclipse-mosquitto:2 \
-    mosquitto_passwd -b /mosquitto/config/passwd "${MQTT_USER}" "${MQTT_PASS}"
+touch "${WORK_DIR}/mosquitto/config/passwd"
 
-# El archivo puede quedar con permisos estrictos del contenedor; normalizar
+docker run --rm \
+  -v "${WORK_DIR}/mosquitto/config:/mosquitto/config" \
+  eclipse-mosquitto:2 \
+  sh -c "mosquitto_passwd -b /mosquitto/config/passwd '${MQTT_USER}' '${MQTT_PASS}'"
+
 chmod 644 "${WORK_DIR}/mosquitto/config/passwd"
 echo "  -> Credenciales Mosquitto generadas: usuario=${MQTT_USER}"
 
-# ── 4. Grafana: provisioning de datasource ──────────────────────────
 echo "[4/6] Creando provisioning de datasource de Grafana → InfluxDB @ ${VM_BACK_IP}:8086..."
-
 cat > "${WORK_DIR}/grafana/provisioning/datasources/influxdb.yaml" << EOF
 apiVersion: 1
 
@@ -95,7 +74,6 @@ datasources:
     editable: true
 EOF
 
-# Directorio de dashboards vacío (placeholder para provisioning futuro)
 cat > "${WORK_DIR}/grafana/provisioning/dashboards/dashboards.yaml" << 'EOF'
 apiVersion: 1
 
@@ -110,10 +88,8 @@ EOF
 
 echo "  -> Datasource apuntando a http://${VM_BACK_IP}:8086 (org=${INFLUX_ORG}, bucket=${INFLUX_BUCKET})."
 
-# ── 5. docker-compose.yml ───────────────────────────────────────────
 echo "[5/6] Creando docker-compose.yml..."
-
-cat > "${WORK_DIR}/docker-compose.yml" << 'COMPOSE_EOF'
+cat > "${WORK_DIR}/docker-compose.yml" << 'EOF'
 version: "3.8"
 
 services:
@@ -143,9 +119,8 @@ services:
 
 volumes:
   grafana_data:
-COMPOSE_EOF
+EOF
 
-# ── 6. Levantar servicios ────────────────────────────────────────────
 echo "[6/6] Levantando servicios con docker-compose..."
 cd "${WORK_DIR}"
 docker-compose up -d
