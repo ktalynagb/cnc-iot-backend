@@ -1,0 +1,12 @@
+[project]
+name = "mqtt-bridge"
+version = "0.1.0"
+description = "FLUX CNC IoT — MQTT Bridge (MQTT → InfluxDB + CSV)"
+requires-python = ">=3.10"
+dependencies = [
+    "paho-mqtt>=2.1.0",
+    "influxdb-client>=1.40.0",
+    "python-dotenv>=1.0.0",
+    "pydantic-settings>=2.2.0",
+    "pydantic>=2.7.0",
+]
