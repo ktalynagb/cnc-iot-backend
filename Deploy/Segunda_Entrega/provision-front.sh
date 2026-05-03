@@ -141,7 +141,9 @@ if [ ! -d "${REPO_DIR}/.git" ]; then
     echo "  -> Repositorio clonado en ${REPO_DIR}"
 else
     cd "${REPO_DIR}"
-    git pull --ff-only || true
+    if ! git pull --ff-only; then
+        echo "  ADVERTENCIA: git pull falló, se continúa con el código actual."
+    fi
     chown -R ubuntu:ubuntu "${REPO_DIR}"
     echo "  -> Repositorio actualizado en ${REPO_DIR}"
 fi

@@ -26,7 +26,7 @@ def obtener_alertas(
                columnKey: ["_field"],
                valueColumn: "_value"
              )
-          |> filter(fn: (r) => r.alerta == "True")
+          |> filter(fn: (r) => r.alerta == true)
           |> sort(columns: ["_time"], desc: true)
           |> limit(n: {limit})
     """
