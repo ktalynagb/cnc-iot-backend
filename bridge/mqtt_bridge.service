@@ -1,6 +1,6 @@
-# mqtt_bridge.service  —  Servicio systemd para el MQTT Bridge
+# mqtt_bridge.service  —  Servicio systemd para el MQTT Bridge (UV)
 # ================================================================
-# Instalación en la VM de AWS:
+# Instalación en la VM pública (vm-iot-front):
 #   sudo cp bridge/mqtt_bridge.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable mqtt_bridge
@@ -17,9 +17,9 @@ Wants=mosquitto.service
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/cnc-iot-backend
+WorkingDirectory=/home/ubuntu/cnc-iot-backend/bridge
 EnvironmentFile=/home/ubuntu/cnc-iot-backend/backend/.env
-ExecStart=/usr/bin/python3 bridge/mqtt_bridge.py
+ExecStart=/usr/local/bin/uv run python mqtt_bridge.py
 Restart=always
 RestartSec=5
 StandardOutput=journal

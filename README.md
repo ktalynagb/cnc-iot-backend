@@ -243,13 +243,16 @@ nano backend/.env
 # Completar INFLUX_TOKEN, MQTT_BROKER=localhost, etc.
 ```
 
-### 3. Instalar dependencias del bridge
+### 3. Instalar UV (gestor de entornos Python)
 
 ```bash
-pip install paho-mqtt influxdb-client python-dotenv pydantic-settings
+curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
 ```
 
-### 4. Instalar el bridge como servicio systemd
+### 4. Instalar el bridge como servicio systemd con UV
+
+El bridge usa UV para gestionar sus dependencias. No necesita `uv.lock` previo; UV lo genera
+automáticamente la primera vez que arranca el servicio.
 
 ```bash
 sudo cp bridge/mqtt_bridge.service /etc/systemd/system/
@@ -262,13 +265,28 @@ sudo systemctl status mqtt_bridge
 sudo journalctl -u mqtt_bridge -f
 ```
 
+> El provisioning automatizado (`provision-front.sh`) realiza todos estos pasos sin intervención manual.
+
+## Descarga del CSV desde la nube
+
+El CSV de todas las lecturas se puede descargar directamente desde el endpoint del backend:
+
+```
+GET http://<IP_PUBLICA>:8000/datos/descargar/
+```
+
+El archivo se descarga con nombre `lecturas_cnc_<timestamp>.csv` y contiene todas las lecturas
+acumuladas por el bridge desde el inicio del servicio.
+
+El CSV se escribe en `/home/ubuntu/cnc-iot-backend/backend/data/lecturas.csv` en la VM pública.
+
 ## Endpoints API REST (solo lectura)
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | `GET` | `/datos/` | Últimas N lecturas desde InfluxDB (parámetro `limit`) |
-| `GET` | `/datos/descargar/` | Descarga el CSV completo como archivo adjunto |
-| `GET` | `/alertas/` | Lecturas con `alerta = true` |
+| `GET` | `/datos/descargar/` | **Descarga el CSV completo** como archivo adjunto |
+| `GET` | `/datos/alertas/` | Lecturas con `alerta = true` desde InfluxDB |
 
 > El `POST /datos/` fue eliminado en esta entrega — los datos llegan por MQTT.
 
@@ -280,3 +298,4 @@ sudo journalctl -u mqtt_bridge -f
 | ✅ Comunicación MQTT | Log de Mosquitto mostrando mensajes continuos del ESP32 |
 | ✅ Broker MQTT | `mosquitto_sub -h IP -u flux_user -P flux_pass -t "flux/#"` recibe datos |
 | ✅ Visualización Grafana | Dashboard con paneles de temperatura, humedad y vibración + alertas activas |
+| ✅ Descarga CSV | `curl http://<IP>:8000/datos/descargar/ -o lecturas.csv` descarga todas las lecturas |
