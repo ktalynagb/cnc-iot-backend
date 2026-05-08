@@ -20,7 +20,7 @@ User=ubuntu
 # Ejecutar desde el backend project venv (contiene paho, influx client, etc.)
 WorkingDirectory=/home/ubuntu/cnc-iot-backend/backend
 EnvironmentFile=/home/ubuntu/cnc-iot-backend/backend/.env
-ExecStart=/usr/local/bin/uv run python ../bridge/mqtt_bridge.py
+ExecStart=/usr/local/bin/uv run python /home/ubuntu/cnc-iot-backend/bridge/mqtt_bridge.py
 Restart=always
 RestartSec=5
 StandardOutput=journal

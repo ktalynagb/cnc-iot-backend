@@ -160,7 +160,8 @@ grep -q '^INFLUX_ORG=' .env && sed -i "s|^INFLUX_ORG=.*|INFLUX_ORG=${INFLUX_ORG}
 grep -q '^INFLUX_BUCKET=' .env && sed -i "s|^INFLUX_BUCKET=.*|INFLUX_BUCKET=${INFLUX_BUCKET}|" .env || echo "INFLUX_BUCKET=${INFLUX_BUCKET}" >> .env
 grep -q '^MQTT_BROKER=' .env && sed -i "s|^MQTT_BROKER=.*|MQTT_BROKER=localhost|" .env || echo "MQTT_BROKER=localhost" >> .env
 
-# Eliminar variables PostgreSQL heredadas que puedan romper pydantic
+# Eliminar variables PostgreSQL heredadas de entregas anteriores (DB_HOST, DB_PORT, etc.)
+# que pydantic v2 rechaza con ValidationError si Settings no las declara.
 sed -i '/^DB_/d' "${BACKEND_DIR}/.env"
 
 # Generar .venv en backend como usuario ubuntu (crea cache de UV en /home/ubuntu/.local/share/uv)
