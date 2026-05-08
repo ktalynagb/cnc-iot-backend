@@ -71,7 +71,7 @@ docker run --rm \
   sh -c "mosquitto_passwd -b /mosquitto/config/passwd '${MQTT_USER}' '${MQTT_PASS}'"
 
 # Permisos estrictos para evitar la advertencia de mosquitto (y por seguridad)
-chmod 0700 "${WORK_DIR}/mosquitto/config/passwd" || true
+chmod 0600 "${WORK_DIR}/mosquitto/config/passwd" || true
 chown ubuntu:ubuntu "${WORK_DIR}/mosquitto/config/passwd" || true
 echo "  -> Credenciales Mosquitto generadas: usuario=${MQTT_USER}"
 
@@ -187,7 +187,7 @@ sudo -u ubuntu /bin/bash -lc "cd '${BACKEND_DIR}' && ${UV_BIN} sync" || {
   echo "  !! uv sync falló, reintentando una vez..."
   sleep 2
   sudo -u ubuntu /bin/bash -lc "cd '${BACKEND_DIR}' && ${UV_BIN} sync" || {
-    echo "  !! uv sync falló definitivamente. Comprueba /home/ubuntu/cnc-iot-backend/backend/.venv y permisos."
+    echo "  !! uv sync falló definitivamente. Comprueba ${BACKEND_DIR}/.venv y permisos."
   }
 }
 # Asegurar propiedad final por si algo quedó de root
