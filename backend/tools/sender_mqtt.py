@@ -5,7 +5,7 @@ import signal
 import sys
 import paho.mqtt.client as mqtt
 
-MQTT_BROKER = "74.249.204.133"
+MQTT_BROKER = "20.12.210.162"
 MQTT_PORT = 1883
 MQTT_USER = "flux_user"
 MQTT_PASSWORD = "flux_pass"
