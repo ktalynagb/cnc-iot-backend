@@ -24,9 +24,9 @@ echo "================================================================"
 
 echo "[1/7] Instalando Docker y Docker Compose..."
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io docker-compose curl ca-certificates git
-systemctl enable docker
-systemctl start docker
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io docker-compose curl ca-certificates git || true
+systemctl enable docker || true
+systemctl start docker || true
 
 until docker info > /dev/null 2>&1; do
   echo "  Esperando que Docker arranque..."
@@ -44,12 +44,18 @@ mkdir -p "${WORK_DIR}/grafana/dashboards"
 # Ensure ownership matches Grafana container user (uid 472)
 chown -R 472:472 "${WORK_DIR}/grafana/dashboards" || true
 
-# ---------------------------
-# Garantizar propiedad/permisos
-# ---------------------------
-# Asegurar que WORK_DIR es accesible por el usuario ubuntu (idempotente).
-chown -R ubuntu:ubuntu "${WORK_DIR}" || true
-chmod -R u+rwX "${WORK_DIR}" || true
+# -------------------------------
+# Utilidades de test y preparaciones idempotentes
+# -------------------------------
+echo "[2b/7] Instalando utilidades de test (mosquitto-clients, pip) y preparando entorno..."
+apt-get update -qq || true
+apt-get install -y --no-install-recommends mosquitto-clients python3-pip || true
+
+# Instalar paho-mqtt para el usuario ubuntu (evita pip global)
+sudo -u ubuntu /bin/bash -lc "python3 -m pip install --user paho-mqtt" || true
+
+# Asegurar directorios (reintento idempotente)
+mkdir -p "${WORK_DIR}/mosquitto/config" "${WORK_DIR}/mosquitto/log" "${WORK_DIR}/mosquitto/data"
 
 echo "[3/7] Configurando Mosquitto..."
 cat > "${WORK_DIR}/mosquitto/config/mosquitto.conf" << 'EOF'
@@ -62,18 +68,30 @@ log_dest stdout
 log_dest file /mosquitto/log/mosquitto.log
 EOF
 
-rm -f "${WORK_DIR}/mosquitto/config/passwd"
-touch "${WORK_DIR}/mosquitto/config/passwd"
+# Generar passwd (si no existe se crea)
+if [ ! -f "${WORK_DIR}/mosquitto/config/passwd" ]; then
+  docker run --rm -v "${WORK_DIR}/mosquitto/config:/mosquitto/config" eclipse-mosquitto:2 \
+    sh -c "mosquitto_passwd -b /mosquitto/config/passwd '${MQTT_USER}' '${MQTT_PASS}'"
+  echo "  -> passwd creado."
+else
+  echo "  -> passwd ya existe."
+fi
 
-docker run --rm \
-  -v "${WORK_DIR}/mosquitto/config:/mosquitto/config" \
-  eclipse-mosquitto:2 \
-  sh -c "mosquitto_passwd -b /mosquitto/config/passwd '${MQTT_USER}' '${MQTT_PASS}'"
+# Asegurar logfile existe
+touch "${WORK_DIR}/mosquitto/log/mosquitto.log" || true
 
-# Permisos estrictos para evitar la advertencia de mosquitto (y por seguridad)
-chmod 0600 "${WORK_DIR}/mosquitto/config/passwd" || true
-chown ubuntu:ubuntu "${WORK_DIR}/mosquitto/config/passwd" || true
-echo "  -> Credenciales Mosquitto generadas: usuario=${MQTT_USER}"
+# Determinar UID:GID del usuario 'mosquitto' dentro de la imagen para aplicar chown correcto
+MOS_UID=$(docker run --rm eclipse-mosquitto:2 id -u mosquitto)
+MOS_GID=$(docker run --rm eclipse-mosquitto:2 id -g mosquitto)
+echo "  -> mosquitto uid:gid = ${MOS_UID}:${MOS_GID}"
+
+# Aplicar propietario y permisos correctos al árbol montado (config, log, data)
+chown -R "${MOS_UID}:${MOS_GID}" "${WORK_DIR}/mosquitto" || true
+find "${WORK_DIR}/mosquitto" -type d -exec chmod 0750 {} \; || true
+[ -f "${WORK_DIR}/mosquitto/config/passwd" ] && chmod 0600 "${WORK_DIR}/mosquitto/config/passwd" || true
+[ -f "${WORK_DIR}/mosquitto/log/mosquitto.log" ] && chmod 0600 "${WORK_DIR}/mosquitto/log/mosquitto.log" || true
+
+echo "  -> Credenciales y logs asegurados (uid:gid ${MOS_UID}:${MOS_GID})."
 
 echo "[4/7] Configurando Grafana datasource..."
 cat > "${WORK_DIR}/grafana/provisioning/datasources/influxdb.yaml" << EOF
@@ -144,13 +162,32 @@ echo "[6/7] Levantando servicios..."
 cd "${WORK_DIR}"
 docker-compose up -d
 
+# Esperar que Mosquitto esté realmente UP (timeout 60s)
+echo "[6b/7] Esperando a que mosquitto arranque..."
+START=0
+TIMEOUT=60
+SUCCESS=0
+while [ $START -lt $TIMEOUT ]; do
+  if docker logs mosquitto 2>&1 | grep -q "mosquitto version .* running"; then
+    SUCCESS=1
+    break
+  fi
+  sleep 1
+  START=$((START+1))
+done
+
+if [ "$SUCCESS" -ne 1 ]; then
+  echo "ERROR: mosquitto no arrancó correctamente. Últimos logs:"
+  docker logs mosquitto --tail 200 || true
+  exit 1
+fi
+echo "  -> mosquitto arrancado correctamente."
+
 echo "[7/7] Instalando y activando backend FastAPI con UV..."
-# --- Clonar / actualizar el repo COMO usuario 'ubuntu' para evitar problemas de permisos
+# Clonar/actualizar repo COMO ubuntu (evita problemas de permisos)
 if [ ! -d "${REPO_DIR}" ]; then
-  echo "[FRONT] Clonando repo como ubuntu..."
   sudo -u ubuntu git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
 else
-  echo "[FRONT] Actualizando repo como ubuntu..."
   sudo -u ubuntu bash -lc "cd '${REPO_DIR}' && git fetch --all && git reset --hard origin/${BRANCH}"
 fi
 
@@ -158,11 +195,7 @@ fi
 chown -R ubuntu:ubuntu "${REPO_DIR}" || true
 chmod -R u+rwX "${REPO_DIR}" || true
 
-if [ ! -x "${UV_BIN}" ]; then
-  echo "  -> UV no existe en ${UV_BIN}; instalando..."
-  curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
-fi
-
+# Preparar backend
 cd "${BACKEND_DIR}"
 
 if [ ! -f ".env" ]; then
@@ -176,23 +209,13 @@ grep -q '^INFLUX_ORG=' .env && sed -i "s|^INFLUX_ORG=.*|INFLUX_ORG=${INFLUX_ORG}
 grep -q '^INFLUX_BUCKET=' .env && sed -i "s|^INFLUX_BUCKET=.*|INFLUX_BUCKET=${INFLUX_BUCKET}|" .env || echo "INFLUX_BUCKET=${INFLUX_BUCKET}" >> .env
 grep -q '^MQTT_BROKER=' .env && sed -i "s|^MQTT_BROKER=.*|MQTT_BROKER=localhost|" .env || echo "MQTT_BROKER=localhost" >> .env
 
-# Eliminar variables PostgreSQL heredadas de entregas anteriores (DB_HOST, DB_PORT, etc.)
-# que pydantic v2 rechaza con ValidationError si Settings no las declara.
-sed -i '/^DB_/d' "${BACKEND_DIR}/.env"
+# Eliminar variables PostgreSQL heredadas de entregas anteriores
+sed -i '/^DB_/d' "${BACKEND_DIR}/.env" || true
 
 # Generar .venv en backend como usuario ubuntu (crea cache de UV en /home/ubuntu/.local/share/uv)
-echo "  -> Ejecutando uv sync como ubuntu..."
-# Ejecutar dentro del backend como ubuntu para crear .venv con el propietario correcto
-sudo -u ubuntu /bin/bash -lc "cd '${BACKEND_DIR}' && ${UV_BIN} sync" || {
-  echo "  !! uv sync falló, reintentando una vez..."
-  sleep 2
-  sudo -u ubuntu /bin/bash -lc "cd '${BACKEND_DIR}' && ${UV_BIN} sync" || {
-    echo "  !! uv sync falló definitivamente. Comprueba ${BACKEND_DIR}/.venv y permisos."
-  }
+sudo -u ubuntu /bin/bash -lc "cd ${BACKEND_DIR} && ${UV_BIN} sync" || {
+  echo "  !! Atención: uv sync falló (reintentar manualmente como ubuntu)"
 }
-# Asegurar propiedad final por si algo quedó de root
-chown -R ubuntu:ubuntu "${BACKEND_DIR}" || true
-
 # Preparar directorio de datos y fichero CSV
 mkdir -p "${BACKEND_DIR}/data"
 touch "${BACKEND_DIR}/data/lecturas.csv"
@@ -200,11 +223,10 @@ chown -R ubuntu:ubuntu "${BACKEND_DIR}/data"
 chmod 664 "${BACKEND_DIR}/data/lecturas.csv"
 
 # Instalar y activar mqtt_bridge.service
-chown -R ubuntu:ubuntu "${WORK_DIR}" "${REPO_DIR}" || true
 cp "${REPO_DIR}/bridge/mqtt_bridge.service" /etc/systemd/system/mqtt_bridge.service
 systemctl daemon-reload
 systemctl enable mqtt_bridge
-systemctl restart mqtt_bridge
+systemctl restart mqtt_bridge || true
 
 cat > /etc/systemd/system/cnc_backend.service << 'EOF'
 [Unit]
@@ -229,7 +251,7 @@ EOF
 
 systemctl daemon-reload
 systemctl enable cnc_backend
-systemctl restart cnc_backend
+systemctl restart cnc_backend || true
 
 echo "  -> Backend FastAPI activado."
 

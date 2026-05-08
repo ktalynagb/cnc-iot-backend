@@ -17,8 +17,6 @@ set -euo pipefail
 VM_FRONT_IP="${1:?ERROR: falta el argumento 1 (IP privada de vm-iot-front)}"
 
 # ── Credenciales e identificadores ──────────────────────────────────────────────
-# [INF-4] Token predecible para compartir con el equipo de Backend.
-# Puede cambiarse post-despliegue desde la UI de InfluxDB o via CLI.
 INFLUX_TOKEN="flux-cnc-iot-admin-token-2024"
 INFLUX_ORG="flux"
 INFLUX_BUCKET="flux_cnc"
@@ -35,7 +33,6 @@ echo " [BACK] Provisionando vm-iot-back (InfluxDB + Telegraf)"
 echo " vm-iot-front IP (Mosquitto): ${VM_FRONT_IP}"
 echo "================================================================"
 
-# ── 1. Instalar Docker y Docker Compose ─────────────────────────────
 echo "[1/5] Instalando Docker y Docker Compose..."
 apt-get update -qq
 apt-get install -y --no-install-recommends docker.io docker-compose
@@ -50,20 +47,16 @@ until docker info > /dev/null 2>&1; do
 done
 echo "  -> Docker listo."
 
-# ── 2. Crear estructura de directorios ──────────────────────────────
 echo "[2/5] Creando estructura de directorios en ${WORK_DIR}..."
 mkdir -p "${WORK_DIR}/influxdb/config"
 mkdir -p "${WORK_DIR}/telegraf"
 
-# Asegurar propiedad/permiso del WORK_DIR para el usuario ubuntu (idempotente)
+# Asegurar propiedad y permisos del WORK_DIR (evita problemas con volúmenes montados)
 chown -R ubuntu:ubuntu "${WORK_DIR}" || true
 chmod -R u+rwX "${WORK_DIR}" || true
 
 # ── 3. Telegraf: configuración MQTT Consumer → InfluxDB v2 ──────────
 echo "[3/5] Creando configuración de Telegraf..."
-# Suscripción a los topics del ESP32 en el broker Mosquitto de vm-iot-front.
-# Escritura en InfluxDB local (via nombre de servicio Docker 'influxdb').
-
 cat > "${WORK_DIR}/telegraf/telegraf.conf" << EOF
 [global_tags]
   env = "azure-iot"
@@ -80,12 +73,6 @@ cat > "${WORK_DIR}/telegraf/telegraf.conf" << EOF
   hostname         = "vm-iot-back"
   omit_hostname    = false
 
-# ── INPUT: MQTT Consumer ──────────────────────────────────────────────────────
-# Se suscribe al broker Mosquitto de vm-iot-front usando la IP interna de la VNet.
-# Topicos esperados del ESP32 (publicados por mqtt_bridge.py o directamente):
-#   flux/cnc1/temperatura  → {"value": 28.5}
-#   flux/cnc1/humedad      → {"value": 60.2}
-#   flux/cnc1/vibracion    → {"accel_x": 0.12, "accel_y": -0.03, "accel_z": 9.81}
 [[inputs.mqtt_consumer]]
   servers             = ["tcp://${VM_FRONT_IP}:1883"]
   topics              = [
@@ -104,7 +91,6 @@ cat > "${WORK_DIR}/telegraf/telegraf.conf" << EOF
   json_time_format    = ""
   tag_keys            = []
 
-# ── OUTPUT: InfluxDB v2 (local, mismo host Docker) ───────────────────────────
 [[outputs.influxdb_v2]]
   urls         = ["http://influxdb:8086"]
   token        = "${INFLUX_TOKEN}"
@@ -115,16 +101,11 @@ EOF
 
 echo "  -> telegraf.conf creado (broker: tcp://${VM_FRONT_IP}:1883)."
 
-# ── 4. docker-compose.yml ───────────────────────────────────────────
 echo "[4/5] Creando docker-compose.yml..."
-
 cat > "${WORK_DIR}/docker-compose.yml" << COMPOSE_EOF
 version: "3.8"
 
 services:
-  # ── InfluxDB 2.x ────────────────────────────────────────────────────────────
-  # Se auto-inicializa con DOCKER_INFLUXDB_INIT_MODE=setup creando:
-  #   org=${INFLUX_ORG}  bucket=${INFLUX_BUCKET}  token=${INFLUX_TOKEN}
   influxdb:
     image: influxdb:2.7
     container_name: influxdb
@@ -142,8 +123,6 @@ services:
       - influxdb_data:/var/lib/influxdb2
       - ./influxdb/config:/etc/influxdb2
 
-  # ── Telegraf (Bridge MQTT → InfluxDB) ────────────────────────────────────────
-  # Se suscribe a Mosquitto en vm-iot-front y escribe en InfluxDB local.
   telegraf:
     image: telegraf:1.30
     container_name: telegraf
@@ -159,16 +138,15 @@ COMPOSE_EOF
 
 echo "  -> docker-compose.yml creado."
 
-# ── 5. Levantar servicios ────────────────────────────────────────────
 echo "[5/5] Levantando servicios con docker-compose..."
 cd "${WORK_DIR}"
 docker-compose up -d
 
-# Forzar permisos correctos en los archivos/volúmenes montados
-chown -R ubuntu:ubuntu "${WORK_DIR}" || true
-
 # Dar tiempo a InfluxDB para su inicialización inicial antes de reportar
 sleep 10
+
+# Forzar permisos correctos en los volúmenes/config creados (idempotente)
+chown -R ubuntu:ubuntu "${WORK_DIR}" || true
 
 echo ""
 echo "================================================================"
