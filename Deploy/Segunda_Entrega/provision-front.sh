@@ -44,6 +44,13 @@ mkdir -p "${WORK_DIR}/grafana/dashboards"
 # Ensure ownership matches Grafana container user (uid 472)
 chown -R 472:472 "${WORK_DIR}/grafana/dashboards" || true
 
+# ---------------------------
+# Garantizar propiedad/permisos
+# ---------------------------
+# Asegurar que WORK_DIR es accesible por el usuario ubuntu (idempotente).
+chown -R ubuntu:ubuntu "${WORK_DIR}" || true
+chmod -R u+rwX "${WORK_DIR}" || true
+
 echo "[3/7] Configurando Mosquitto..."
 cat > "${WORK_DIR}/mosquitto/config/mosquitto.conf" << 'EOF'
 listener 1883
@@ -63,7 +70,9 @@ docker run --rm \
   eclipse-mosquitto:2 \
   sh -c "mosquitto_passwd -b /mosquitto/config/passwd '${MQTT_USER}' '${MQTT_PASS}'"
 
-chmod 600 "${WORK_DIR}/mosquitto/config/passwd"
+# Permisos estrictos para evitar la advertencia de mosquitto (y por seguridad)
+chmod 0600 "${WORK_DIR}/mosquitto/config/passwd" || true
+chown ubuntu:ubuntu "${WORK_DIR}/mosquitto/config/passwd" || true
 echo "  -> Credenciales Mosquitto generadas: usuario=${MQTT_USER}"
 
 echo "[4/7] Configurando Grafana datasource..."
@@ -136,11 +145,18 @@ cd "${WORK_DIR}"
 docker-compose up -d
 
 echo "[7/7] Instalando y activando backend FastAPI con UV..."
+# --- Clonar / actualizar el repo COMO usuario 'ubuntu' para evitar problemas de permisos
 if [ ! -d "${REPO_DIR}" ]; then
-  git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
+  echo "[FRONT] Clonando repo como ubuntu..."
+  sudo -u ubuntu git clone --branch "${BRANCH}" "${REPO_URL}" "${REPO_DIR}"
 else
-  cd "${REPO_DIR}" && git pull origin "${BRANCH}"
+  echo "[FRONT] Actualizando repo como ubuntu..."
+  sudo -u ubuntu bash -lc "cd '${REPO_DIR}' && git fetch --all && git reset --hard origin/${BRANCH}"
 fi
+
+# Asegurar propiedad y permisos correctos (idempotente)
+chown -R ubuntu:ubuntu "${REPO_DIR}" || true
+chmod -R u+rwX "${REPO_DIR}" || true
 
 if [ ! -x "${UV_BIN}" ]; then
   echo "  -> UV no existe en ${UV_BIN}; instalando..."
@@ -165,7 +181,17 @@ grep -q '^MQTT_BROKER=' .env && sed -i "s|^MQTT_BROKER=.*|MQTT_BROKER=localhost|
 sed -i '/^DB_/d' "${BACKEND_DIR}/.env"
 
 # Generar .venv en backend como usuario ubuntu (crea cache de UV en /home/ubuntu/.local/share/uv)
-sudo -u ubuntu /bin/bash -lc "cd ${BACKEND_DIR} && ${UV_BIN} sync"
+echo "  -> Ejecutando uv sync como ubuntu..."
+# Ejecutar dentro del backend como ubuntu para crear .venv con el propietario correcto
+sudo -u ubuntu /bin/bash -lc "cd '${BACKEND_DIR}' && ${UV_BIN} sync" || {
+  echo "  !! uv sync falló, reintentando una vez..."
+  sleep 2
+  sudo -u ubuntu /bin/bash -lc "cd '${BACKEND_DIR}' && ${UV_BIN} sync" || {
+    echo "  !! uv sync falló definitivamente. Comprueba ${BACKEND_DIR}/.venv y permisos."
+  }
+}
+# Asegurar propiedad final por si algo quedó de root
+chown -R ubuntu:ubuntu "${BACKEND_DIR}" || true
 
 # Preparar directorio de datos y fichero CSV
 mkdir -p "${BACKEND_DIR}/data"
@@ -174,6 +200,7 @@ chown -R ubuntu:ubuntu "${BACKEND_DIR}/data"
 chmod 664 "${BACKEND_DIR}/data/lecturas.csv"
 
 # Instalar y activar mqtt_bridge.service
+chown -R ubuntu:ubuntu "${WORK_DIR}" "${REPO_DIR}" || true
 cp "${REPO_DIR}/bridge/mqtt_bridge.service" /etc/systemd/system/mqtt_bridge.service
 systemctl daemon-reload
 systemctl enable mqtt_bridge

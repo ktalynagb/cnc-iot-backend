@@ -55,6 +55,10 @@ echo "[2/5] Creando estructura de directorios en ${WORK_DIR}..."
 mkdir -p "${WORK_DIR}/influxdb/config"
 mkdir -p "${WORK_DIR}/telegraf"
 
+# Asegurar propiedad/permiso del WORK_DIR para el usuario ubuntu (idempotente)
+chown -R ubuntu:ubuntu "${WORK_DIR}" || true
+chmod -R u+rwX "${WORK_DIR}" || true
+
 # ── 3. Telegraf: configuración MQTT Consumer → InfluxDB v2 ──────────
 echo "[3/5] Creando configuración de Telegraf..."
 # Suscripción a los topics del ESP32 en el broker Mosquitto de vm-iot-front.
@@ -159,6 +163,9 @@ echo "  -> docker-compose.yml creado."
 echo "[5/5] Levantando servicios con docker-compose..."
 cd "${WORK_DIR}"
 docker-compose up -d
+
+# Forzar permisos correctos en los archivos/volúmenes montados
+chown -R ubuntu:ubuntu "${WORK_DIR}" || true
 
 # Dar tiempo a InfluxDB para su inicialización inicial antes de reportar
 sleep 10

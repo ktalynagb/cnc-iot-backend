@@ -257,6 +257,14 @@ az vm run-command invoke \
 
 echo "  -> Aprovisionamiento de '${VM_PUBLIC_NAME}' completado."
 
+echo "Aplicando correcciones de ownership remotas en '${VM_PUBLIC_NAME}' (seguro e idempotente)..."
+az vm run-command invoke \
+  --resource-group "$RG_NAME" \
+  --name "$VM_PUBLIC_NAME" \
+  --command-id RunShellScript \
+  --scripts "chown -R ubuntu:ubuntu /home/ubuntu/cnc-iot-backend || true; chown -R ubuntu:ubuntu /opt/iot/front || true; chmod 0600 /opt/iot/front/mosquitto/config/passwd || true" \
+  --output none || echo "Advertencia: no se pudo aplicar chown remoto (ignored)"
+
 echo "Aprovisionando '${VM_PRIVATE_NAME}' (InfluxDB + Telegraf)..."
 az vm run-command invoke \
   --resource-group "$RG_NAME" \
