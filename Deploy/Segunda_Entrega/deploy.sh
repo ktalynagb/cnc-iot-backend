@@ -246,43 +246,83 @@ echo "============================================================"
 echo " FASE 4b: Aprovisionamiento via az vm run-command invoke"
 echo "============================================================"
 
+# ── 1) Aprovisionar VM pública (front)
 echo "Aprovisionando '${VM_PUBLIC_NAME}' (Mosquitto + Grafana)..."
-az vm run-command invoke \
+FRONT_CODE=$(az vm run-command invoke \
   --resource-group "$RG_NAME" \
   --name "$VM_PUBLIC_NAME" \
   --command-id RunShellScript \
   --scripts "@${SCRIPTS_DIR}/provision-front.sh" \
   --parameters "$VM_BACK_PRIVATE_IP" "$INFLUX_TOKEN" \
-  --output json
+  --query "value[0].code" -o tsv) || FRONT_CODE=""
 
+if [ "$FRONT_CODE" != "ProvisioningState/succeeded" ]; then
+  echo "ERROR: aprovisionamiento de ${VM_PUBLIC_NAME} falló (code=${FRONT_CODE})."
+  echo "Último mensaje:"
+  az vm run-command invoke \
+    --resource-group "$RG_NAME" \
+    --name "$VM_PUBLIC_NAME" \
+    --command-id RunShellScript \
+    --scripts "@${SCRIPTS_DIR}/provision-front.sh" \
+    --parameters "$VM_BACK_PRIVATE_IP" "$INFLUX_TOKEN" \
+    --query "value[0].message" -o tsv || true
+  exit 1
+fi
 echo "  -> Aprovisionamiento de '${VM_PUBLIC_NAME}' completado."
 
-echo "Aplicando correcciones de ownership remotas en '${VM_PUBLIC_NAME}' (seguro e idempotente)..."
+# ── 2) Corrección remota idempotente (front) - aplicar propietario/perm seguros
+echo "Aplicando correcciones de ownership remotas en '${VM_PUBLIC_NAME}' (idempotente)..."
 az vm run-command invoke \
   --resource-group "$RG_NAME" \
   --name "$VM_PUBLIC_NAME" \
   --command-id RunShellScript \
-  --scripts "chown -R ubuntu:ubuntu /home/ubuntu/cnc-iot-backend || true; chown -R ubuntu:ubuntu /opt/iot/front || true; chmod 0600 /opt/iot/front/mosquitto/config/passwd || true" \
+  --scripts "set -euo pipefail
+    chown -R ubuntu:ubuntu /home/ubuntu/cnc-iot-backend || true
+    chown -R ubuntu:ubuntu /opt/iot/front || true
+    if [ -f /opt/iot/front/mosquitto/config/passwd ]; then chmod 0600 /opt/iot/front/mosquitto/config/passwd || true; fi
+    if [ -f /opt/iot/front/mosquitto/log/mosquitto.log ]; then chmod 0600 /opt/iot/front/mosquitto/log/mosquitto.log || true; fi
+  " \
   --output none || echo "Advertencia: no se pudo aplicar chown remoto (ignored)"
 
+# ── 3) Aprovisionar VM privada (back)
 echo "Aprovisionando '${VM_PRIVATE_NAME}' (InfluxDB + Telegraf)..."
-az vm run-command invoke \
+BACK_CODE=$(az vm run-command invoke \
   --resource-group "$RG_NAME" \
   --name "$VM_PRIVATE_NAME" \
   --command-id RunShellScript \
   --scripts "@${SCRIPTS_DIR}/provision-back.sh" \
   --parameters "$VM_FRONT_PRIVATE_IP" \
-  --output json
+  --query "value[0].code" -o tsv) || BACK_CODE=""
 
-echo "Aplicando correcciones de ownership remotas en '${VM_PUBLIC_NAME}' (seguro e idempotente)..."
+if [ "$BACK_CODE" != "ProvisioningState/succeeded" ]; then
+  echo "ERROR: aprovisionamiento de ${VM_PRIVATE_NAME} falló (code=${BACK_CODE})."
+  echo "Último mensaje:"
+  az vm run-command invoke \
+    --resource-group "$RG_NAME" \
+    --name "$VM_PRIVATE_NAME" \
+    --command-id RunShellScript \
+    --scripts "@${SCRIPTS_DIR}/provision-back.sh" \
+    --parameters "$VM_FRONT_PRIVATE_IP" \
+    --query "value[0].message" -o tsv || true
+  exit 1
+fi
+echo "  -> Aprovisionamiento de '${VM_PRIVATE_NAME}' completado."
+
+# ── 4) Corrección remota final (asegurar permisos definitivos)
+echo "Aplicando correcciones de ownership remotas finales en '${VM_PUBLIC_NAME}' (idempotente)..."
 az vm run-command invoke \
   --resource-group "$RG_NAME" \
   --name "$VM_PUBLIC_NAME" \
   --command-id RunShellScript \
-  --scripts "chown -R ubuntu:ubuntu /home/ubuntu/cnc-iot-backend || true; chown -R ubuntu:ubuntu /opt/iot/front || true; chmod 0600 /opt/iot/front/mosquitto/config/passwd || true" \
+  --scripts "set -euo pipefail
+    chown -R ubuntu:ubuntu /home/ubuntu/cnc-iot-backend || true
+    chown -R ubuntu:ubuntu /opt/iot/front || true
+    if [ -f /opt/iot/front/mosquitto/config/passwd ]; then chmod 0600 /opt/iot/front/mosquitto/config/passwd || true; fi
+    if [ -f /opt/iot/front/mosquitto/log/mosquitto.log ]; then chmod 0600 /opt/iot/front/mosquitto/log/mosquitto.log || true; fi
+  " \
   --output none || echo "Advertencia: no se pudo aplicar chown remoto (ignored)"
 
-echo "  -> Aprovisionamiento de '${VM_PRIVATE_NAME}' completado."
+echo "Fase 4b completada."
 
 echo ""
 echo "============================================================"

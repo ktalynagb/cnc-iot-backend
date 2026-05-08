@@ -16,7 +16,7 @@ set -euo pipefail
 
 VM_FRONT_IP="${1:?ERROR: falta el argumento 1 (IP privada de vm-iot-front)}"
 
-# ── Credenciales e identificadores ──────────────────────────────────────────────
+# ── Credenciales e identificadores ──���───────────────────────────────────────────
 INFLUX_TOKEN="flux-cnc-iot-admin-token-2024"
 INFLUX_ORG="flux"
 INFLUX_BUCKET="flux_cnc"
@@ -35,10 +35,10 @@ echo "================================================================"
 
 echo "[1/5] Instalando Docker y Docker Compose..."
 apt-get update -qq
-apt-get install -y --no-install-recommends docker.io docker-compose
-systemctl enable docker
-systemctl start docker
-usermod -aG docker ubuntu
+apt-get install -y --no-install-recommends docker.io docker-compose || true
+systemctl enable docker || true
+systemctl start docker || true
+usermod -aG docker ubuntu || true
 
 # Esperar a que el daemon de Docker esté listo
 until docker info > /dev/null 2>&1; do
@@ -48,14 +48,12 @@ done
 echo "  -> Docker listo."
 
 echo "[2/5] Creando estructura de directorios en ${WORK_DIR}..."
-mkdir -p "${WORK_DIR}/influxdb/config"
-mkdir -p "${WORK_DIR}/telegraf"
+mkdir -p "${WORK_DIR}/influxdb/config" "${WORK_DIR}/telegraf"
 
 # Asegurar propiedad y permisos del WORK_DIR (evita problemas con volúmenes montados)
 chown -R ubuntu:ubuntu "${WORK_DIR}" || true
 chmod -R u+rwX "${WORK_DIR}" || true
 
-# ── 3. Telegraf: configuración MQTT Consumer → InfluxDB v2 ──────────
 echo "[3/5] Creando configuración de Telegraf..."
 cat > "${WORK_DIR}/telegraf/telegraf.conf" << EOF
 [global_tags]
@@ -140,7 +138,11 @@ echo "  -> docker-compose.yml creado."
 
 echo "[5/5] Levantando servicios con docker-compose..."
 cd "${WORK_DIR}"
-docker-compose up -d
+if command -v docker-compose >/dev/null 2>&1; then
+  docker-compose up -d
+else
+  docker compose up -d
+fi
 
 # Dar tiempo a InfluxDB para su inicialización inicial antes de reportar
 sleep 10
