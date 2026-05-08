@@ -40,6 +40,9 @@ mkdir -p "${WORK_DIR}/mosquitto/data"
 mkdir -p "${WORK_DIR}/mosquitto/log"
 mkdir -p "${WORK_DIR}/grafana/provisioning/datasources"
 mkdir -p "${WORK_DIR}/grafana/provisioning/dashboards"
+mkdir -p "${WORK_DIR}/grafana/dashboards"
+# Ensure ownership matches Grafana container user (uid 472)
+chown -R 472:472 "${WORK_DIR}/grafana/dashboards" || true
 
 echo "[3/7] Configurando Mosquitto..."
 cat > "${WORK_DIR}/mosquitto/config/mosquitto.conf" << 'EOF'
@@ -60,7 +63,7 @@ docker run --rm \
   eclipse-mosquitto:2 \
   sh -c "mosquitto_passwd -b /mosquitto/config/passwd '${MQTT_USER}' '${MQTT_PASS}'"
 
-chmod 644 "${WORK_DIR}/mosquitto/config/passwd"
+chmod 600 "${WORK_DIR}/mosquitto/config/passwd"
 echo "  -> Credenciales Mosquitto generadas: usuario=${MQTT_USER}"
 
 echo "[4/7] Configurando Grafana datasource..."
@@ -121,6 +124,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin123
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
       - grafana_data:/var/lib/grafana
 
 volumes:
@@ -156,7 +160,23 @@ grep -q '^INFLUX_ORG=' .env && sed -i "s|^INFLUX_ORG=.*|INFLUX_ORG=${INFLUX_ORG}
 grep -q '^INFLUX_BUCKET=' .env && sed -i "s|^INFLUX_BUCKET=.*|INFLUX_BUCKET=${INFLUX_BUCKET}|" .env || echo "INFLUX_BUCKET=${INFLUX_BUCKET}" >> .env
 grep -q '^MQTT_BROKER=' .env && sed -i "s|^MQTT_BROKER=.*|MQTT_BROKER=localhost|" .env || echo "MQTT_BROKER=localhost" >> .env
 
-"${UV_BIN}" sync
+# Eliminar variables PostgreSQL heredadas que puedan romper pydantic
+sed -i '/^DB_/d' "${BACKEND_DIR}/.env"
+
+# Generar .venv en backend como usuario ubuntu (crea cache de UV en /home/ubuntu/.local/share/uv)
+sudo -u ubuntu /bin/bash -lc "cd ${BACKEND_DIR} && ${UV_BIN} sync"
+
+# Preparar directorio de datos y fichero CSV
+mkdir -p "${BACKEND_DIR}/data"
+touch "${BACKEND_DIR}/data/lecturas.csv"
+chown -R ubuntu:ubuntu "${BACKEND_DIR}/data"
+chmod 664 "${BACKEND_DIR}/data/lecturas.csv"
+
+# Instalar y activar mqtt_bridge.service
+cp "${REPO_DIR}/bridge/mqtt_bridge.service" /etc/systemd/system/mqtt_bridge.service
+systemctl daemon-reload
+systemctl enable mqtt_bridge
+systemctl restart mqtt_bridge
 
 cat > /etc/systemd/system/cnc_backend.service << 'EOF'
 [Unit]

@@ -7,10 +7,13 @@ CAMBIOS vs entrega anterior:
   ✨  INFLUX_*, MQTT_*                                →  Nuevos
 """
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # Evitar que claves extras en .env (p.ej. DB_... heredadas) rompan la carga de Settings
+    model_config = ConfigDict(extra="ignore", env_file=".env")
 
     # ── Servidor FastAPI (sin cambios) ────────────────────────────────────────
     APP_HOST: str = "0.0.0.0"
@@ -37,9 +40,5 @@ class Settings(BaseSettings):
     MQTT_PORT:     int = 1883
     MQTT_USER:     str = "flux_user"
     MQTT_PASSWORD: str = "flux_pass"
-
-    class Config:
-        env_file = ".env"
-
 
 settings = Settings()
